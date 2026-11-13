@@ -1,0 +1,4 @@
+fastapi>=0.110
+uvicorn>=0.29
+opencv-python>=4.8   # only for the live camera (camera/live_camera.py)
+pytest>=8.0

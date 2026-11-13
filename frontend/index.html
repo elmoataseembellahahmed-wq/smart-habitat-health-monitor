@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Astronaut Health Monitor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Astronaut Health Monitor</h1>
+      <p class="sub">Smart habitat &middot; no tests needed &middot; runs offline &middot; simulated Mars transit</p>
+    </div>
+    <div class="player">
+      <button id="play" type="button" aria-label="Play the mission">&#9654; Play</button>
+      <label for="day">Mission day <strong id="dayLabel">&ndash;</strong></label>
+      <input id="day" type="range" min="0" max="0" step="1">
+    </div>
+  </header>
+
+  <section class="cabin" id="cabin" aria-label="Cabin environment"></section>
+
+  <section class="live" id="live" aria-label="Live camera"></section>
+
+  <section class="crew" id="crew" aria-label="Crew status"></section>
+
+  <section class="detail" id="detail" aria-live="polite">
+    <div class="detail-head">
+      <h2 id="detailTitle">&ndash;</h2>
+      <span class="badge" id="detailBadge"></span>
+    </div>
+
+    <div class="body-panel">
+      <div class="body-figure">
+        <svg id="bodySvg" viewBox="0 0 200 330" role="img" aria-label="Body figure colored by health status">
+          <!-- legs and arms: bones and muscles -->
+          <g class="part" data-system="bones" tabindex="0" role="button" aria-label="Bones and muscles">
+            <rect x="34" y="96" width="20" height="104" rx="10"/>
+            <rect x="146" y="96" width="20" height="104" rx="10"/>
+            <rect x="70" y="214" width="26" height="108" rx="12"/>
+            <rect x="104" y="214" width="26" height="108" rx="12"/>
+          </g>
+          <!-- torso outline -->
+          <rect class="torso" x="58" y="86" width="84" height="134" rx="26"/>
+          <!-- abdomen: metabolism -->
+          <g class="part" data-system="metabolism" tabindex="0" role="button" aria-label="Metabolism">
+            <ellipse cx="100" cy="186" rx="30" ry="22"/>
+          </g>
+          <!-- lungs -->
+          <g class="part" data-system="lungs" tabindex="0" role="button" aria-label="Lungs and breathing">
+            <ellipse cx="80" cy="128" rx="15" ry="28"/>
+            <ellipse cx="120" cy="128" rx="15" ry="28"/>
+          </g>
+          <!-- heart -->
+          <g class="part" data-system="heart" tabindex="0" role="button" aria-label="Heart and blood vessels">
+            <path d="M100 160 C84 148 82 132 92 128 C97 126 100 130 100 133 C100 130 103 126 108 128 C118 132 116 148 100 160 Z"/>
+          </g>
+          <!-- neck: immune system -->
+          <g class="part" data-system="immune" tabindex="0" role="button" aria-label="Immune system">
+            <rect x="88" y="66" width="24" height="20" rx="6"/>
+          </g>
+          <!-- head: brain and mind -->
+          <g class="part" data-system="brain" tabindex="0" role="button" aria-label="Brain and mind">
+            <circle cx="100" cy="38" r="28"/>
+          </g>
+        </svg>
+        <div class="legend">
+          <span><i class="dot normal"></i>Normal</span>
+          <span><i class="dot watch"></i>Watch</span>
+          <span><i class="dot act"></i>Act</span>
+          <span><i class="dot info"></i>No sensor</span>
+        </div>
+      </div>
+      <div class="body-info" id="bodyInfo"></div>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h3>What is happening</h3>
+        <ul id="patterns" class="plain"></ul>
+        <h3>Why</h3>
+        <ul id="reasons" class="plain"></ul>
+        <h3>Decision rules that fired</h3>
+        <ul id="rules" class="plain"></ul>
+        <h3>AI check <span class="hint">(Isolation Forest trained on this astronaut's normal days)</span></h3>
+        <div id="ai"></div>
+        <h3>Recommended actions</h3>
+        <ol id="actions"></ol>
+        <h3>Routine <span class="hint">(the few things the habitat still needs from you)</span></h3>
+        <ul id="routine" class="plain"></ul>
+      </div>
+      <div class="col">
+        <h3>Signals vs. personal normal <span class="hint">(shaded band = normal range)</span></h3>
+        <div id="signals" class="signals"></div>
+      </div>
+    </div>
+
+    <div class="report-box">
+      <div class="report-head">
+        <h3>Daily report</h3>
+        <div class="report-tools">
+          <div class="lang" role="group" aria-label="Report language">
+            <button id="langEn" type="button" class="on">English</button>
+            <button id="langAr" type="button" lang="ar">عربي</button>
+          </div>
+          <button id="copy" type="button">Copy</button>
+          <button id="pdf" type="button">Save as PDF</button>
+        </div>
+      </div>
+      <pre id="report"></pre>
+    </div>
+  </section>
+
+  <section class="sensors" aria-label="Habitat sensors">
+    <h3>Habitat sensors <span class="hint">(no tests: everything is measured during normal work and sleep)</span></h3>
+    <div id="sensors" class="sensor-grid"></div>
+  </section>
+
+  <footer>Decision support only. The flight surgeon makes medical decisions. Data is simulated.</footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
