@@ -13,6 +13,9 @@ realistic, repeatable scenario (fixed random seed) for the demo:
 * Astronaut C ("Chen") has ONE bad night on day 121 and recovers. The system
   should notice it without raising a false alarm.
 * Cabin CO2 creeps up on days 123-125 (a scrubber problem) and affects everyone.
+* Camera time: the cameras usually see each face for 3-6 hours a day. On days 60-61 Amira
+  is preparing for and doing a spacewalk (in a suit, away from cameras), and on day 122 Ben
+  works in a module without cameras. Then fatigue is estimated from the wristband.
 
 Replace this module with real sensor feeds to use the system for real.
 """
@@ -23,6 +26,9 @@ MISSION_START = 1
 MISSION_END = 125
 BASELINE_DAYS = range(1, 15)  # days 1..14: learn each astronaut's normal
 STORY_START = 100  # days 100-125 keep the original demo scenario (same random stream)
+
+# Days a camera could not see someone: (astronaut, day) -> minutes in view.
+CAMERA_GAPS = {("A", 60): 5, ("A", 61): 0, ("B", 122): 15}
 
 CREW = [
     {"id": "A", "name": "Amira", "role": "Commander"},
@@ -148,6 +154,16 @@ def generate(seed=42):
     for day in range(MISSION_START, STORY_START):
         cabin[day] = {"co2": round(2.2 + rng3.gauss(0, 0.15), 2),
                       "radiation": round(0.48 + rng3.gauss(0, 0.04), 3)}
+
+    # Minutes the cabin cameras saw each face (own random stream: other values unchanged).
+    rng4 = random.Random(seed + 3)
+    for member in CREW:
+        aid = member["id"]
+        for day in range(MISSION_START, MISSION_END + 1):
+            minutes = rng4.uniform(180, 360)
+            if (aid, day) in CAMERA_GAPS:
+                minutes = CAMERA_GAPS[(aid, day)]
+            crew_data[aid][day]["camera_minutes"] = round(minutes)
 
     for aid in crew_data:
         crew_data[aid] = dict(sorted(crew_data[aid].items()))

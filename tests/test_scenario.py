@@ -184,3 +184,21 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print("passed:", name)
+
+
+def test_camera_cannot_see_face_uses_wristband():
+    """Too little face time: camera readings are not trusted, fatigue comes from the wristband."""
+    b = m.assess("B", 122)                      # Ben worked away from the cameras (15 min)
+    fatigue = next(s for s in b["signals"] if s["signal"] == "fatigue_score")
+    blink = next(s for s in b["signals"] if s["signal"] == "blink_rate")
+    assert fatigue["source"] == "wristband" and fatigue["level"] == "strong"
+    assert "estimated from the wristband" in fatigue["reason"]
+    assert blink["missing"] and blink["level"] is None
+    assert b["state"] == "ACT"
+    assert "قُدّر الإرهاق من السوار" in m.report("B", 122, "ar")
+    for day in (60, 61):                        # Amira's spacewalk: no camera, still healthy
+        a = m.assess("A", day)
+        assert a["state"] == "NORMAL"
+        assert next(s for s in a["signals"] if s["signal"] == "fatigue_score")["source"] == "wristband"
+    normal_day = m.assess("A", 30)
+    assert all(s.get("source") is None for s in normal_day["signals"])

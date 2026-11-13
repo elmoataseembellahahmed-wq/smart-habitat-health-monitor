@@ -71,6 +71,12 @@ SIGNALS = {
         "domain": "mental", "bad": "high", "decimals": 0,
         "about": "Blinks per minute. People blink more as they get tired.",
     },
+    # --- Derived: used only when the cameras saw too little of someone that day ---
+    "wrist_fatigue": {
+        "name": "Fatigue estimate (wristband)", "unit": "/100", "device": "wristband", "system": "brain",
+        "domain": "mental", "bad": "high", "decimals": 0, "min_sd": 4.0, "derived": True,
+        "about": "Estimated from sleep, heart rate variability and resting heart rate when the cameras could not see the face.",
+    },
     # --- Voice and daily log (optional) ---
     "mood_score": {
         "name": "Mood score", "unit": "/100", "device": "voice", "system": "brain",
@@ -150,3 +156,17 @@ BODY_SYSTEMS = {
         "hazards": ["Altered gravity"],
     },
 }
+
+
+# Signals measured directly (the derived wristband fatigue estimate is a backup, not an extra vote).
+CORE_SIGNALS = [k for k, v in SIGNALS.items() if not v.get("derived")]
+CAMERA_SIGNALS = ("fatigue_score", "blink_rate")
+MIN_CAMERA_MINUTES = 30  # less face time than this in a day = camera readings not trusted
+
+
+def wrist_fatigue(reading):
+    """Fatigue 0-100 from the wristband alone: short sleep, low HRV and a raised resting
+    heart rate all point to fatigue. Used when the cameras did not see the face enough."""
+    score = (25 + 12 * (7.0 - reading["sleep_hours"]) + 0.8 * (60 - reading["hrv"])
+             + 0.8 * (reading["heart_rate"] - 60))
+    return round(min(100.0, max(0.0, score)), 1)

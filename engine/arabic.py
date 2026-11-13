@@ -112,11 +112,16 @@ def _fmt(value, decimals):
 
 def reason_ar(f):
     name, unit = SIGNAL_AR[f["signal"]]
+    prefix = ""
+    if f.get("source") == "wristband":
+        name = "تقدير الإرهاق من السوار"
+        prefix = (f"لم ترَ الكاميرات هذا الرائد إلا {f.get('camera_minutes', 0)} دقيقة اليوم، "
+                  "لذلك قُدّر الإرهاق من السوار (النوم وتباين نبضات القلب والنبض). ")
     d = SIGNALS[f["signal"]]["decimals"]
     base = f["baseline"]
     pct = abs(f["value"] - base) / base * 100 if base else 0
     direction = "أعلى" if f["value"] > base else "أقل"
-    text = (f"{name} = {_fmt(f['value'], d)} {unit}، أي {direction} بنسبة {pct:.0f}% "
+    text = prefix + (f"{name} = {_fmt(f['value'], d)} {unit}، أي {direction} بنسبة {pct:.0f}% "
             f"من المعتاد لهذا الرائد ({_fmt(base, d)} {unit})")
     if f["streak_days"] >= 2:
         text += f" لمدة {f['streak_days']} أيام متتالية"

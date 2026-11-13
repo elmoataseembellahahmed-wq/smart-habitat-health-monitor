@@ -12,7 +12,8 @@ from .fusion import fuse, GENERAL_ACTIONS
 from .report import build_report
 from .arabic import build_report_ar
 from .reminders import reminders, normal_streak
-from .signals import SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS
+from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
+                      CAMERA_SIGNALS, MIN_CAMERA_MINUTES, wrist_fatigue)
 
 TREND_DAYS = 5
 LEARN_EVERY = 7    # the personal normal (and the AI model) is updated once a week...
@@ -25,6 +26,9 @@ class HealthMonitor:
         self.crew = crew or simulate.CREW
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
+        for crew_days in self.data["crew"].values():
+            for reading in crew_days.values():
+                reading["wrist_fatigue"] = wrist_fatigue(reading)
         self.baselines = {
             m["id"]: compute_baseline(self.data["crew"][m["id"]], self.baseline_days)
             for m in self.crew
@@ -32,7 +36,7 @@ class HealthMonitor:
         # AI layer: one Isolation Forest per astronaut, trained on their baseline days.
         self.models = {
             m["id"]: AnomalyModel(self.data["crew"][m["id"]], self.baseline_days,
-                                  self.baselines[m["id"]], SIGNALS)
+                                  self.baselines[m["id"]], CORE_SIGNALS)
             for m in self.crew
         }
         self._ai_cache = {}
@@ -62,18 +66,50 @@ class HealthMonitor:
             crew_days = self.data["crew"][aid]
             base = compute_baseline(crew_days, days)
             self._learned[key] = {"days": days, "baseline": base,
-                                  "model": AnomalyModel(crew_days, days, base, SIGNALS)}
+                                  "model": AnomalyModel(crew_days, days, base, CORE_SIGNALS)}
         return self._learned[key]
 
     def baseline_for(self, aid, day):
         return self._learned_for(aid, day)["baseline"]
 
+    def camera_seen(self, aid, day):
+        return self.data["crew"][aid][day].get("camera_minutes", 999) >= MIN_CAMERA_MINUTES
+
+    def _signals(self, aid, day, base):
+        """Layer 2 for every signal. If the cameras saw too little of this astronaut today,
+        the camera readings are not trusted and fatigue comes from the wristband instead."""
+        days = self.data["crew"][aid]
+        seen = self.camera_seen(aid, day)
+        out = []
+        for k in CORE_SIGNALS:
+            if k in CAMERA_SIGNALS and not seen:
+                out.append(self._camera_fallback(k, day, days, base))
+            else:
+                out.append(analyse_signal(k, day, days, base))
+        return out
+
+    def _camera_fallback(self, key, day, days, base):
+        minutes = days[day].get("camera_minutes", 0)
+        note = (f"The cameras saw this astronaut for only {minutes} min today "
+                f"(at least {MIN_CAMERA_MINUTES} min needed)")
+        if key == "fatigue_score":
+            a = analyse_signal("wrist_fatigue", day, days, base)
+            a.update(signal="fatigue_score", source="wristband", camera_minutes=minutes,
+                     note=note + ", so fatigue was estimated from the wristband (sleep, HRV, heart rate).")
+            if a["reason"]:
+                a["reason"] = note + ", so fatigue was estimated from the wristband. " + a["reason"]
+            return a
+        meta = SIGNALS[key]
+        return {"signal": key, "name": meta["name"], "unit": meta["unit"], "device": meta["device"],
+                "system": meta["system"], "domain": meta["domain"], "value": None,
+                "baseline": round(base[key]["mean"], 2), "z": 0.0, "level": None, "streak_days": 0,
+                "limit": None, "reason": None, "missing": True, "camera_minutes": minutes,
+                "note": note + ", so this was not measured."}
+
     def _rule_state(self, aid, day):
         key = (aid, day)
         if key not in self._rule_states:
-            days = self.data["crew"][aid]
-            base = self.baseline_for(aid, day)
-            signals = [analyse_signal(k, day, days, base) for k in SIGNALS]
+            signals = self._signals(aid, day, self.baseline_for(aid, day))
             self._rule_states[key] = fuse(signals, analyse_cabin(day, self.data["cabin"]))["state"]
         return self._rule_states[key]
 
@@ -93,7 +129,7 @@ class HealthMonitor:
         """Run layers 2 and 3 for one astronaut on one day."""
         self._check_day(day)
         days = self.data["crew"][aid]
-        signals = [analyse_signal(k, day, days, self.baseline_for(aid, day)) for k in SIGNALS]
+        signals = self._signals(aid, day, self.baseline_for(aid, day))
         cabin = analyse_cabin(day, self.data["cabin"])
         decision = fuse(signals, cabin)
         decision["signals"] = signals
@@ -106,7 +142,13 @@ class HealthMonitor:
         """Isolation Forest result for one day, compared with the rule-based state."""
         key = (aid, day)
         if key not in self._ai_cache:
-            self._ai_cache[key] = self._learned_for(aid, day)["model"].assess(self.data["crew"][aid][day])
+            learned = self._learned_for(aid, day)
+            reading = dict(self.data["crew"][aid][day])
+            if not self.camera_seen(aid, day):
+                # Camera values weren't measured: give the model a neutral value for them.
+                for k in CAMERA_SIGNALS:
+                    reading[k] = learned["baseline"][k]["mean"]
+            self._ai_cache[key] = learned["model"].assess(reading)
         res = dict(self._ai_cache[key])
         ai_flag = res["level"] != "normal"
         # Cabin-only alerts are about the environment, not the person, so the model

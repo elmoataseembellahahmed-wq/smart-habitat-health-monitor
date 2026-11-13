@@ -36,6 +36,7 @@ async function api(path, asText = false) {
 }
 
 function fmt(value, decimals) {
+  if (value === null || value === undefined) return "not seen";
   return decimals ? Number(value).toFixed(decimals) : String(Math.round(value));
 }
 
@@ -149,8 +150,9 @@ function renderBody(m) {
   const rows = sys.signals.map((k) => {
     const s = byKey[k], sm = state.mission.signals[k];
     return el("tr", { class: s.level || "" },
-      el("td", {}, el("div", {}, s.name), el("div", { class: "about" }, sm.about)),
-      el("td", { class: "v" }, `${fmt(s.value, sm.decimals)} ${s.unit}`),
+      el("td", {}, el("div", {}, s.source === "wristband" ? "Fatigue estimate (wristband)" : s.name),
+        el("div", { class: "about" }, s.note || sm.about)),
+      el("td", { class: "v" }, s.missing ? "not seen" : `${fmt(s.value, sm.decimals)} ${s.unit}`),
       el("td", { class: "about" }, `normal ${fmt(s.baseline, sm.decimals)}`));
   });
   $("bodyInfo").replaceChildren(
@@ -236,8 +238,9 @@ function renderDetail(m) {
       const meta = state.mission.signals[s.signal];
       const ser = state.series[m.id]?.[s.signal];
       return el("div", { class: `sig ${s.level ? "flag-" + s.level : ""}` },
-        el("div", { class: "t" }, `${s.name} - ${state.mission.devices[s.device].name}`),
-        el("div", { class: "v" }, `${fmt(s.value, meta.decimals)} ${s.unit}`,
+        el("div", { class: "t" }, `${s.source === "wristband" ? "Fatigue estimate" : s.name} - ${state.mission.devices[s.device].name}`),
+        s.note ? el("div", { class: "about" }, s.note) : null,
+        el("div", { class: "v" }, s.missing ? "not seen" : `${fmt(s.value, meta.decimals)} ${s.unit}`,
           el("span", { class: "role" }, `  normal ${fmt(s.baseline, meta.decimals)}`)),
         ser ? sparkline(ser, state.day, s.level) : null);
     })

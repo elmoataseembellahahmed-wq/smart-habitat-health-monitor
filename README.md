@@ -99,11 +99,13 @@ areas only.
 - `camera/blink_tracker.py` measures **blink rate**, **PERCLOS** (share of time the eyes are closed) and **long closures** (0.5 s or more, possible microsleep) over the last minute, for instant alerts.
 - It also keeps a **daily summary**: minutes in view, eye closure today, microsleeps today and the most tired hour.
 - When nobody faces the camera, it simply measures nothing. Calibration counts only face time.
+- **If the cameras can't see a face enough** (less than 30 minutes in a day, e.g. during a spacewalk or work in a module without cameras), the camera readings are not trusted. Fatigue is then estimated from the wristband (sleep, heart rate variability, resting heart rate), compared with that astronaut's own normal, and the dashboard and report say so ("not seen", "estimated from the wristband"). NASA also uses wrist actigraphy to assess sleep and alertness.
 - Smoothing: a closure only counts once it lasts 2 frames, so a single missed detection is not a fake blink.
 - `engine/live.py` compares readings with the saved personal normal: WATCH if blinking or eye closure rises, ACT for 2+ long closures in a minute.
 
 ## The demo story (mission days 1-125)
 - **Days 1-14**: the system learns each astronaut's personal normal. After that it keeps learning: every 7 days it updates the normal from the last 30 days the astronaut was NORMAL, so slow changes in space are followed, but bad days are never learned as "normal".
+- **Camera gaps**: on days 60-61 Amira is on a spacewalk (no camera, wristband says she is fine); on day 122 Ben works away from the cameras for most of the day, and his fatigue is still caught from the wristband (65 vs his normal 33).
 - **Days 15-118**: everyone is healthy. Over these 104 days the system gives one single-day WATCH (Amira, day 48) and no ACT.
 - **Amira**: healthy throughout. The system stays quiet.
 - **Ben**: slow stress build-up from day 119: sleep drops, HRV falls, blood pressure, breathing and blood sugar rise, mood falls. WATCH on day 120, ACT from day 121. The AI model flags him from day 120, and its alert grows stronger as he declines.
@@ -134,7 +136,7 @@ areas only.
 - **Most data is simulated.** Day-by-day in-flight astronaut data is not public. The webcam input is real.
 - Wrist temperature is an estimate of body temperature.
 - Thresholds are starting values, not clinically validated.
-- The camera needs a visible face and steady light. Spacecraft lighting is controlled, which helps.
+- The camera needs a visible face and steady light. Spacecraft lighting is controlled, which helps. When it can't see a face long enough, fatigue falls back to a wristband estimate, which is less direct than eye measures.
 - This is decision support. The flight surgeon makes medical decisions.
 
 ## License

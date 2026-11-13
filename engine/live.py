@@ -35,7 +35,10 @@ def assess(reading):
     if not reading.get("face_detected"):
         return {"state": "NOT IN VIEW", "reasons": [
             "Nobody is facing this camera right now. That's normal: the cameras measure "
-            "whenever a face is in view."], "actions": []}
+            "whenever a face is in view.",
+            "If the cameras see someone for less than 30 minutes in a day, the system does not "
+            "guess from the camera: it estimates fatigue from their wristband (sleep, heart rate "
+            "variability, heart rate) and says so in the report."], "actions": []}
 
     base_rate = reading.get("baseline_blink_rate") or 0
     base_perclos = reading.get("baseline_perclos") or 0
