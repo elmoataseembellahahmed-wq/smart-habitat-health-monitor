@@ -3,8 +3,9 @@
 Real day-by-day in-flight astronaut data is not public, so this module generates a
 realistic, repeatable scenario (fixed random seed) for the demo:
 
-* Mission days 100-125 on the way to Mars.
-* Days 100-113 are the baseline window: every astronaut is healthy.
+* Mission days 1-125 on the way to Mars.
+* Days 1-14 are the baseline window: the system learns each astronaut's normal.
+  Everyone stays healthy until day 118.
 * Astronaut A ("Amira") stays healthy the whole time.
 * Astronaut B ("Ben") slowly develops stress and fatigue from day 119:
   sleep drifts, HRV drops, blood pressure and blood sugar rise, mood falls, stress
@@ -18,9 +19,10 @@ Replace this module with real sensor feeds to use the system for real.
 
 import random
 
-MISSION_START = 100
+MISSION_START = 1
 MISSION_END = 125
-BASELINE_DAYS = range(100, 114)  # days 100..113
+BASELINE_DAYS = range(1, 15)  # days 1..14: learn each astronaut's normal
+STORY_START = 100  # days 100-125 keep the original demo scenario (same random stream)
 
 CREW = [
     {"id": "A", "name": "Amira", "role": "Commander"},
@@ -87,7 +89,7 @@ def generate(seed=42):
     for member in CREW:
         aid = member["id"]
         days = {}
-        for day in range(MISSION_START, MISSION_END + 1):
+        for day in range(STORY_START, MISSION_END + 1):
             reading = {}
             for key, normal in PERSONAL_NORMAL[aid].items():
                 value = normal + rng.gauss(0, NOISE[key])
@@ -102,7 +104,7 @@ def generate(seed=42):
         crew_data[aid] = days
 
     cabin = {}
-    for day in range(MISSION_START, MISSION_END + 1):
+    for day in range(STORY_START, MISSION_END + 1):
         co2 = 2.2 + rng.gauss(0, 0.15)
         if day >= 123:
             co2 += 0.7 * (day - 122)  # scrubber degrading: 2.9, 3.6, 4.3
@@ -115,7 +117,7 @@ def generate(seed=42):
     rng2 = random.Random(seed + 1)
     for member in CREW:
         aid = member["id"]
-        for day in range(MISSION_START, MISSION_END + 1):
+        for day in range(STORY_START, MISSION_END + 1):
             reading = crew_data[aid][day]
             for key, normal in VITALS_NORMAL[aid].items():
                 value = normal + rng2.gauss(0, VITALS_NOISE[key])
@@ -126,4 +128,28 @@ def generate(seed=42):
                 if key == "breathing_rate" and day >= 123:
                     value += 0.3 * (day - 122)  # everyone breathes a little faster as CO2 rises
                 reading[key] = round(value, 2 if key == "body_temp" else 1)
+
+    # Early mission, days 1-99: everyone healthy, on a separate random stream so the
+    # demo days (100-125) stay exactly the same.
+    rng3 = random.Random(seed + 2)
+    for member in CREW:
+        aid = member["id"]
+        for day in range(MISSION_START, STORY_START):
+            reading = {}
+            for key, normal in PERSONAL_NORMAL[aid].items():
+                value = normal + rng3.gauss(0, NOISE[key])
+                if key == "stress_words":
+                    value = round(value)
+                reading[key] = round(_clamp(key, value), 2)
+            for key, normal in VITALS_NORMAL[aid].items():
+                value = normal + rng3.gauss(0, VITALS_NOISE[key])
+                reading[key] = round(value, 2 if key == "body_temp" else 1)
+            crew_data[aid][day] = reading
+    for day in range(MISSION_START, STORY_START):
+        cabin[day] = {"co2": round(2.2 + rng3.gauss(0, 0.15), 2),
+                      "radiation": round(0.48 + rng3.gauss(0, 0.04), 3)}
+
+    for aid in crew_data:
+        crew_data[aid] = dict(sorted(crew_data[aid].items()))
+    cabin = dict(sorted(cabin.items()))
     return {"crew": crew_data, "cabin": cabin}

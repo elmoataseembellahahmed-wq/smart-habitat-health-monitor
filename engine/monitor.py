@@ -15,6 +15,8 @@ from .reminders import reminders, normal_streak
 from .signals import SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS
 
 TREND_DAYS = 5
+LEARN_EVERY = 7    # the personal normal (and the AI model) is updated once a week...
+LEARN_WINDOW = 30  # ...from the last 30 days that this astronaut was in NORMAL
 
 
 class HealthMonitor:
@@ -34,6 +36,46 @@ class HealthMonitor:
             for m in self.crew
         }
         self._ai_cache = {}
+        self._learned = {}      # update day -> per-astronaut baseline and AI model
+        self._rule_states = {}  # (aid, day) -> rule-based state, used to pick learning days
+
+    # ---------- continuous learning ----------
+    def update_day(self, day):
+        """The day the personal normal in use on `day` was last updated."""
+        first = max(self.baseline_days) + 1
+        if day < first:
+            return first
+        return first + LEARN_EVERY * ((day - first) // LEARN_EVERY)
+
+    def learning_days(self, aid, day):
+        """Days the personal normal in use on `day` was learned from."""
+        u = self.update_day(day)
+        if u == max(self.baseline_days) + 1:
+            return list(self.baseline_days)
+        window = [d for d in range(u - LEARN_WINDOW, u) if d in self.data["crew"][aid]]
+        return [d for d in window if d in self.baseline_days or self._rule_state(aid, d) == "NORMAL"]
+
+    def _learned_for(self, aid, day):
+        key = (aid, self.update_day(day))
+        if key not in self._learned:
+            days = self.learning_days(aid, day)
+            crew_days = self.data["crew"][aid]
+            base = compute_baseline(crew_days, days)
+            self._learned[key] = {"days": days, "baseline": base,
+                                  "model": AnomalyModel(crew_days, days, base, SIGNALS)}
+        return self._learned[key]
+
+    def baseline_for(self, aid, day):
+        return self._learned_for(aid, day)["baseline"]
+
+    def _rule_state(self, aid, day):
+        key = (aid, day)
+        if key not in self._rule_states:
+            days = self.data["crew"][aid]
+            base = self.baseline_for(aid, day)
+            signals = [analyse_signal(k, day, days, base) for k in SIGNALS]
+            self._rule_states[key] = fuse(signals, analyse_cabin(day, self.data["cabin"]))["state"]
+        return self._rule_states[key]
 
     # ---------- helpers ----------
     def member(self, aid):
@@ -51,7 +93,7 @@ class HealthMonitor:
         """Run layers 2 and 3 for one astronaut on one day."""
         self._check_day(day)
         days = self.data["crew"][aid]
-        signals = [analyse_signal(k, day, days, self.baselines[aid]) for k in SIGNALS]
+        signals = [analyse_signal(k, day, days, self.baseline_for(aid, day)) for k in SIGNALS]
         cabin = analyse_cabin(day, self.data["cabin"])
         decision = fuse(signals, cabin)
         decision["signals"] = signals
@@ -64,7 +106,7 @@ class HealthMonitor:
         """Isolation Forest result for one day, compared with the rule-based state."""
         key = (aid, day)
         if key not in self._ai_cache:
-            self._ai_cache[key] = self.models[aid].assess(self.data["crew"][aid][day])
+            self._ai_cache[key] = self._learned_for(aid, day)["model"].assess(self.data["crew"][aid][day])
         res = dict(self._ai_cache[key])
         ai_flag = res["level"] != "normal"
         # Cabin-only alerts are about the environment, not the person, so the model
@@ -111,7 +153,7 @@ class HealthMonitor:
         """All values of one signal for one astronaut, plus the baseline, for charts."""
         if signal not in SIGNALS:
             raise KeyError(f"Unknown signal: {signal}")
-        base = self.baselines[aid][signal]
+        base = self.baseline_for(aid, self.days[-1])[signal]
         return {
             "signal": signal, **SIGNALS[signal],
             "baseline_mean": round(base["mean"], 2),
@@ -124,6 +166,7 @@ class HealthMonitor:
             "first_day": self.days[0],
             "last_day": self.days[-1],
             "baseline_days": [min(self.baseline_days), max(self.baseline_days)],
+            "learning": {"every_days": LEARN_EVERY, "window_days": LEARN_WINDOW},
             "crew": self.crew,
             "signals": SIGNALS,
             "cabin_signals": CABIN_SIGNALS,

@@ -327,7 +327,7 @@ function setDay(d) {
 function togglePlay() {
   const btn = $("play");
   if (state.timer) {
-    clearInterval(state.timer);
+    clearTimeout(state.timer);
     state.timer = null;
     btn.innerHTML = "&#9654; Play";
     return;
@@ -335,10 +335,13 @@ function togglePlay() {
   // Start the story just after the baseline window if we're at the end.
   if (state.day >= state.mission.last_day) setDay(state.mission.baseline_days[1] + 1);
   btn.innerHTML = "&#10074;&#10074; Pause";
-  state.timer = setInterval(() => {
+  // Quiet weeks play fast; the story days (from day 115) play slowly.
+  const step = () => {
     if (state.day >= state.mission.last_day) return togglePlay();
     setDay(state.day + 1);
-  }, 1500);
+    state.timer = setTimeout(step, state.day >= 115 ? 1500 : 150);
+  };
+  state.timer = setTimeout(step, 150);
 }
 
 function showError(err) {

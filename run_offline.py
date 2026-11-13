@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
 monitor = HealthMonitor()
+monitor.status(monitor.days[-1])  # learn every week of the mission once, at startup
 
 
 class Handler(BaseHTTPRequestHandler):

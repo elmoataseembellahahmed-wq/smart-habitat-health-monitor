@@ -60,6 +60,8 @@ ACTION_AR = {
         "خصّص وقتًا شخصيًا ومكالمة أو رسالة مسجلة من العائلة.",
     "Check in with the crew member in a short private conversation.":
         "تحدّث مع فرد الطاقم في محادثة خاصة قصيرة.",
+    "Re-measure blood oxygen and check the sensor fit.":
+        "أعد قياس الأكسجين في الدم وتأكد من تثبيت الحساس جيدًا.",
     "Re-measure blood oxygen now and check the sensor fit.":
         "أعد قياس الأكسجين في الدم الآن وتأكد من تثبيت المستشعر.",
     "Check cabin air (CO2 and O2) and notify the flight surgeon.":

@@ -21,6 +21,7 @@ app = FastAPI(
 )
 
 monitor = HealthMonitor()
+monitor.status(monitor.days[-1])  # learn every week of the mission once, at startup
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 
