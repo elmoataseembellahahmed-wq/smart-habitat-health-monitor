@@ -19,6 +19,7 @@ up to 20 minutes to reach Earth.
 ## Documentation
 | Document | What it answers |
 |---|---|
+| `docs/MODIFICATIONS_STATUS.md` | The development plan's items and what is done |
 | `docs/NASA_RESOURCES.md` | The challenge's NASA and CSA resources and how each one is used |
 | `docs/GAP_RESOLUTION.md` | All 35 issues from the gap analysis and what was done about each |
 | `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope; hardware status |

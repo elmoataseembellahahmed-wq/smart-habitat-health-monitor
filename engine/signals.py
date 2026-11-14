@@ -156,20 +156,20 @@ BODY_SYSTEMS = {
         "hazards": ["Altered gravity", "Distance from Earth"],
     },
     "immune": {
-        "name": "Immune system",
+        "name": "Immune-related warning indicators",
         "does": "Fights infection.",
         "space": "The immune system can change in space, and radiation adds risk. A fever is an early warning.",
         "hazards": ["Space radiation", "Hostile closed environment"],
-        "measured": "Not monitored directly. Only a warning from wrist skin temperature (possible fever). "
-                    "No immune lab data in this prototype.",
+        "measured": "Not measured by wearables. A fever warning from wrist skin temperature, plus periodic "
+                    "blood-test results when they are entered or imported. No results = unknown, never 'normal'.",
     },
     "bones": {
         "name": "Bones and muscles",
         "does": "Hold the body up and let it move.",
         "space": "Without gravity, bones and muscles weaken. No sensor measures this day to day: daily resistance exercise is the main protection.",
         "hazards": ["Altered gravity"],
-        "measured": "Not measured: we track exercise adherence only (from the exercise log). This is not a "
-                    "bone-density or muscle measurement.",
+        "measured": "Not measured by wearables. Exercise adherence (indirect), plus periodic bone-scan and "
+                    "strength-test results when entered or imported, with date and source. Never inferred from the band.",
     },
 }
 

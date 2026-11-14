@@ -35,7 +35,8 @@ function tab(which) {
 }
 
 // ---------- quick check ----------
-const EXTRA = { camera_minutes: ["Camera time (face in view)", "min"], exercise_minutes: ["Exercise", "min"] };
+const EXTRA = { camera_minutes: ["Camera time (face in view)", "min"], exercise_minutes: ["Exercise", "min"],
+  personal_dose: ["Personal dosimeter", "mSv/day"] };
 
 function buildFields() {
   const box = $("qfields");
@@ -61,6 +62,7 @@ async function fillNormal() {
     const n = $(`n_${k}`);
     if (n) n.textContent = `this astronaut's normal: ${v}`;
   }
+  document.querySelectorAll("#qsym input").forEach((c) => { c.checked = false; });
   $("c_co2").value = d.cabin.co2;
   $("c_rad").value = d.cabin.radiation;
 }
@@ -68,6 +70,7 @@ async function fillNormal() {
 function readForm() {
   const values = {};
   document.querySelectorAll("#qfields input").forEach((i) => { values[i.id.slice(2)] = i.value === "" ? null : Number(i.value); });
+  values.symptoms = [...document.querySelectorAll("#qsym input:checked")].map((c) => c.value);
   return { aid: $("qaid").value, values, cabin: { co2: $("c_co2").value, radiation: $("c_rad").value } };
 }
 

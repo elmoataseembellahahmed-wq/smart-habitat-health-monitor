@@ -67,6 +67,23 @@ def build_report(member, day, decision, trend, cabin):
             lines.append(f"  - {x['reason']}")
         lines.append("")
 
+    if decision.get("insufficient_data"):
+        lines.append("Not enough data to confirm this status: too many signals are unavailable today.")
+        lines.append("")
+    dose = decision.get("dosimetry")
+    if dose:
+        lines.append("Radiation, this astronaut:")
+        lines.append(f"  - {dose['note']}")
+        lines.append("")
+    sysd = decision.get("systems") or {}
+    clin_lines = [r["text"] for k in ("bones", "immune") for r in (sysd.get(k) or {}).get("clinical", [])]
+    lines.append("Periodic clinical results (not measured by wearables):")
+    for t in clin_lines:
+        lines.append(f"  - {t}. Interpretation is for the flight surgeon.")
+    if not (sysd.get("immune") or {}).get("clinical"):
+        lines.append("  - Immune: no test results, so immune status is unknown (not assumed normal).")
+    lines.append("")
+
     risks = decision.get("nasa_risks") or []
     if risks:
         lines.append("Linked NASA Human Research Program risks (nasa.gov/hrp/risks):")

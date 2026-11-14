@@ -98,6 +98,7 @@ function renderCrew(crew) {
         el("div", { class: "row" },
           el("span", { class: "role" }, `AI anomaly ${m.ai.score.toFixed(2)}`),
           el("span", { class: `ai-tag ${m.ai.level}` }, m.ai.level === "normal" ? "AI: normal" : `AI: ${m.ai.level}`)),
+        m.insufficient_data ? el("div", { class: "role conf-low" }, "Not enough data to confirm the status") : null,
         m.coverage && m.coverage.confidence !== "full"
           ? el("div", { class: `role conf-${m.coverage.confidence}` }, `Data: ${m.coverage.confidence} confidence`) : null,
         m.sensor_faults?.length ? el("div", { class: "role conf-limited" }, `Sensor check: ${m.sensor_faults.map((f) => f.device_name).join(", ")}`) : null,
@@ -194,6 +195,7 @@ function renderBody(m) {
     el("p", {}, el("b", {}, "What it does: "), meta.does),
     el("p", {}, el("b", {}, "In space: "), meta.space),
     meta.measured ? el("p", {}, el("b", {}, "What we measure: "), meta.measured) : null,
+    sys.data_status?.length ? el("p", {}, el("b", {}, "Data: "), sys.data_status.join(" · ")) : null,
     el("div", { class: "lbl" }, "Spaceflight hazards"),
     el("div", { class: "chips" }, ...meta.hazards.map((h) => el("span", { class: "chip-h" }, h))),
     rows.length ? el("div", { class: "lbl" }, "Readings today") : null,
@@ -277,6 +279,11 @@ function renderDetail(m) {
   const extra = [];
   (m.sensor_faults || []).forEach((f) => extra.push(el("li", { class: "integrity" },
     el("strong", {}, `Sensor check (${f.device_name}): `), f.messages.join(" "), " ", f.action)));
+  if (m.reported_symptoms?.length) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Reported symptom: "),
+    `${m.reported_symptoms.join(", ")}: immediate ACT.`));
+  if (m.insufficient_data) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Not enough data: "),
+    "too many signals are unavailable today to confirm this status."));
+  if (m.dosimetry?.available) extra.push(el("li", {}, el("strong", {}, "Personal radiation dose: "), m.dosimetry.note));
   if (m.self_report_skipped) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Diary: "),
     "skipped today (optional), so mood was not assessed."));
   if (m.band_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Wristband check: "), m.band_check.message));

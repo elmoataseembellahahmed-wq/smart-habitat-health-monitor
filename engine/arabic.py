@@ -109,6 +109,8 @@ ACTION_AR = {
     "Re-check temperature later today.": "أعد قياس الحرارة لاحقًا اليوم.",
     "Rest for 10 minutes and re-check breathing rate; check cabin CO2.":
         "استرح 10 دقائق ثم أعد قياس معدل التنفس، وافحص ثاني أكسيد الكربون في المقصورة.",
+    "Reported severe symptom: stop current work, follow the mission emergency procedure and contact the flight surgeon now. Do not wait for the next contact window.":
+        "عَرَض شديد: أوقف العمل الحالي، واتبع إجراء الطوارئ المعتمد للمهمة، وتواصل مع طبيب الرحلة الآن دون انتظار نافذة الاتصال التالية.",
     "Check that you are wearing your own wristband (the ID is on the band), then swap back if needed.":
         "تأكّد أنك تلبس سوارك أنت (الرقم التعريفي مكتوب على السوار)، وبدّله إن لزم.",
     "Flight surgeon: review the slow change in this astronaut's normal since the start of the mission "
@@ -173,6 +175,8 @@ def rule_ar(c):
                 "ويصبح تدخّلًا إذا استمر غدًا.")
     if r == "watch_score":
         return f"مجموع الانحراف {c['score']} وصل إلى مستوى المراقبة ({c['limit']})."
+    if r == "symptom":
+        return "عَرَض شديد أبلغ عنه الرائد (" + "، ".join(c["signals"]) + "): تدخّل فوري."
     if r == "drift":
         return ("تدهور بطيء: المعدل الطبيعي لهذا الرائد ابتعد كثيرًا عن بداية المهمة في: "
                 + "، ".join(SIGNAL_AR[s][0] for s in c["signals"]) + ".")
@@ -257,6 +261,25 @@ def build_report_ar(member, day, decision, trend, cabin):
             L.append(f"  - {name}: المعدل الطبيعي لهذا الرائد تحرّك ببطء من {_fmt(x['anchor'], d)} "
                      f"إلى {_fmt(x['now'], d)} {unit} منذ بداية المهمة ({x['shift']:.1f} انحراف معياري).")
         L.append("")
+
+    if decision.get("insufficient_data"):
+        L.append("البيانات غير كافية لتأكيد هذه الحالة: إشارات كثيرة غير متاحة اليوم.")
+        L.append("")
+    dose = decision.get("dosimetry")
+    if dose and dose.get("available"):
+        L.append("الإشعاع لهذا الرائد (مقياس جرعة شخصي محاكى مرتبط برقم الرائد):")
+        today = "لا قراءة اليوم" if dose["today"] is None else f"{dose['today']:.2f} ملّي سيفرت اليوم"
+        L.append(f"  - {today}، و{dose['mission_total']:.1f} ملّي سيفرت في المهمة ({dose['pct_career']:.0f}% من الحد المهني 600).")
+        L.append("")
+    sysd = decision.get("systems") or {}
+    L.append("نتائج فحوصات دورية (لا تقيسها الأجهزة القابلة للارتداء):")
+    for k in ("bones", "immune"):
+        for r in (sysd.get(k) or {}).get("clinical", []):
+            ch = "" if r["change_pct"] is None else f"، تغيّر {r['change_pct']:+.1f}% منذ اليوم الأول"
+            L.append(f"  - {r['name']}: {r['latest']:g} {r['unit']} يوم {r['day']} ({r['source']}){ch}. التفسير لطبيب الرحلة.")
+    if not (sysd.get("immune") or {}).get("clinical"):
+        L.append("  - المناعة: لا توجد نتائج تحاليل، فحالة المناعة غير معروفة (لا تُعتبر طبيعية).")
+    L.append("")
 
     risks = decision.get("nasa_risks") or []
     if risks:

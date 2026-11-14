@@ -24,9 +24,9 @@ from . import simulate
 from .monitor import HealthMonitor
 from .signals import CORE_SIGNALS, CABIN_SIGNALS
 
-EXTRA = ["camera_minutes", "exercise_minutes"]
+EXTRA = ["camera_minutes", "exercise_minutes", "personal_dose"]
 COLUMNS = (["day", "astronaut_id", "astronaut_name", "role"] + CORE_SIGNALS + EXTRA
-           + ["cabin_co2", "radiation"])
+           + ["symptoms", "cabin_co2", "radiation"])
 MIN_DAYS = 15  # 14 days to learn the normal + at least one day to judge
 
 
@@ -86,6 +86,7 @@ class QuickCheck:
             reading[k] = None if v in (None, "") else float(v)
         if reading["camera_minutes"] is None:
             reading["camera_minutes"] = 240.0
+        reading["symptoms"] = [s for s in (values.get("symptoms") or []) if s]
         readings = {m["id"]: self._normal_day(m["id"], len(self.added)) for m in self.m.crew if m["id"] != aid}
         readings[aid] = reading
         co2, rad = cabin.get("co2"), cabin.get("radiation")
@@ -115,6 +116,7 @@ def template_csv(full=False):
             r = data["crew"][m["id"]][day]
             w.writerow([day, m["id"], m["name"], m["role"]]
                        + ["" if r.get(k) is None else r[k] for k in CORE_SIGNALS + EXTRA]
+                       + [";".join(r.get("symptoms") or [])]
                        + [data["cabin"][day]["co2"], data["cabin"][day]["radiation"]])
     return out.getvalue()
 
@@ -149,6 +151,7 @@ def parse_csv(text):
                 reading[k] = None
         if reading["camera_minutes"] is None:
             reading["camera_minutes"] = 240.0
+        reading["symptoms"] = [s.strip().lower() for s in (row.get("symptoms") or "").split(";") if s.strip()]
         if day in data["crew"].setdefault(aid, {}):
             errors.append(f"Row {i}: astronaut {aid} already has a row for day {day}.")
         data["crew"][aid][day] = reading

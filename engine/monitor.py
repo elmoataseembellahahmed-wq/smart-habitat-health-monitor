@@ -17,6 +17,7 @@ from . import quality
 from . import version
 from . import access
 from .nasa_resources import risks_for
+from . import clinical as clin
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
                       CAMERA_SIGNALS, MIN_CAMERA_MINUTES, wrist_fatigue)
 
@@ -32,8 +33,14 @@ DRIFT_ACTION = ("Flight surgeon: review the slow change in this astronaut's norm
 
 class HealthMonitor:
     def __init__(self, data=None, crew=None, baseline_days=None):
+        demo = data is None
         self.data = data or simulate.generate()
         self.crew = crew or simulate.CREW
+        # Periodic clinical results (bone scan, strength, blood tests): simulated for the demo,
+        # entered or imported otherwise. Personal dosimeter: simulated for the demo only.
+        self.clinical = clin.demo_clinical([m["id"] for m in self.crew]) if demo else clin.ClinicalStore()
+        if demo:
+            clin.add_personal_dose(self.data["crew"], self.data["cabin"], eva_days={"A": {60, 61}})
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
         # Sensor quality first: faulty readings are kept aside and never analysed.
@@ -103,7 +110,7 @@ class HealthMonitor:
         if u == max(self.baseline_days) + 1:
             return list(self.baseline_days)
         window = [d for d in range(u - LEARN_WINDOW, u) if d in self.data["crew"][aid]]
-        days = [d for d in window if not self.band_check(aid, d)
+        days = [d for d in window if not self.band_check(aid, d) and not self.symptoms(aid, d)
                 and (d in self.baseline_days or self._rule_state(aid, d) == "NORMAL")]
         if len(days) < MIN_LEARN_DAYS:
             return self.learning_days(aid, u - 1)   # too few healthy days: keep last week's normal
@@ -121,6 +128,11 @@ class HealthMonitor:
 
     def baseline_for(self, aid, day):
         return self._learned_for(aid, day)["baseline"]
+
+    def symptoms(self, aid, day):
+        """Severe symptoms the astronaut reported that day."""
+        reported = self.data["crew"][aid][day].get("symptoms") or []
+        return [s for s in reported if s in clin.SEVERE_SYMPTOMS]
 
     def band_check(self, aid, day):
         """Swap check: does this astronaut's band read like another astronaut's normal today?"""
@@ -226,13 +238,26 @@ class HealthMonitor:
         decision["sensor_faults"] = quality.sensor_faults(issues)
         decision["self_report_skipped"] = any(i["code"] == "skipped" for i in issues.values())
         decision["coverage"] = quality.coverage(signals)
+        # Immediate path: a reported severe symptom means ACT now, with no streak needed.
+        sym = self.symptoms(aid, day)
+        if sym:
+            decision["state"] = "ACT"
+            decision["rules_fired"].insert(0, "Severe symptom reported (" + ", ".join(sym) + "): immediate ACT.")
+            decision["rule_codes"].insert(0, {"rule": "symptom", "signals": sym})
+            decision["actions"] = [clin.SYMPTOM_ACTION] + [a for a in decision["actions"]
+                                                          if a != "No action needed. Keep the normal schedule."]
+        decision["reported_symptoms"] = sym
+        # Not enough data is said plainly: it never reads as a confident NORMAL.
+        decision["insufficient_data"] = decision["coverage"]["confidence"] == "low"
+        decision["dosimetry"] = clin.dosimetry(self.data["crew"][aid], day)
         decision["nasa_risks"] = risks_for(decision)
         learned = self.learning_days(aid, day)
         decision["versions"] = {**version.stamp(),
                                 "personal_normal": f"{aid}-day{self.update_day(day)}",
                                 "learned_from_days": [min(learned), max(learned), len(learned)]}
         decision["ai"] = self.ai(aid, day, decision)
-        decision["systems"] = body_systems(signals, cabin, self.exercise(aid, day))
+        decision["systems"] = body_systems(signals, cabin, self.exercise(aid, day),
+                                           {d: self.clinical.for_domain(aid, d, day) for d in ("bones", "immune")})
         return decision
 
     def _integrity(self, aid, day, decision):
@@ -418,7 +443,7 @@ LEVEL_RANK = {None: 0, "mild": 1, "strong": 2, "critical": 3}
 SYSTEM_STATUS = {0: "normal", 1: "watch", 2: "act", 3: "act"}
 
 
-def body_systems(signals, cabin, exercise=None):
+def body_systems(signals, cabin, exercise=None, clinical=None):
     """Status of each body system for the body figure: the worst of its signals.
 
     One mild flag gives 'watch'; a strong or safety-limit flag gives 'act'. Lungs also
@@ -452,10 +477,26 @@ def body_systems(signals, cabin, exercise=None):
                 if exercise:
                     actions.append(exercise["note"])
                 actions.append("Keep the daily resistance exercise session: it is the main protection for bones and muscles.")
+        results = (clinical or {}).get(key, [])
+        data_status = list(clin.DOMAIN_DATA.get(key, []))
+        if results:
+            data_status.append(clin.IMPORTED)
+            for r in results:
+                actions.append(r["text"] + ". Interpretation is for the flight surgeon.")
+            if any(r["outside_range"] for r in results) and status in ("normal", "info"):
+                status = "watch"
+        if key == "immune" and not results:
+            data_status.append(clin.UNAVAILABLE + " (no immune test results)")
+            if status == "normal":
+                status = "info"   # no fever is NOT proof of a normal immune system
+            actions.insert(0, "No immune test results: immune status is unknown, not assumed normal. "
+                              "Wrist temperature is only a fever warning.")
         if not actions:
             actions.append("Nothing to do. Keep the normal routine.")
         out[key] = {
             "status": status,
+            "data_status": data_status,
+            "clinical": results,
             "signals": [s["signal"] for s in mine],
             "flags": [s["signal"] for s in mine if s["level"]],
             "actions": actions,

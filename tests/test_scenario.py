@@ -153,7 +153,9 @@ def test_body_systems_status():
     """The body figure colours each body system from its own signals."""
     systems = m.assess("B", 124)["systems"]
     assert systems["heart"]["status"] == "act" and systems["bones"]["status"] == "info"
-    assert all(s["status"] == "normal" for k, s in m.assess("A", 110)["systems"].items() if k != "bones")
+    assert all(s["status"] == "normal" for k, s in m.assess("A", 110)["systems"].items() if k not in ("bones", "immune"))
+    # No immune test results: unknown, never shown as normal.
+    assert m.assess("A", 110)["systems"]["immune"]["status"] == "info"
 
 
 def test_routine_reminders_and_streak():
@@ -453,6 +455,30 @@ def test_findings_link_to_nasa_hrp_risks():
     assert "Risk of Inadequate Sleep and Irregular Schedules" in names
     assert m.assess("A", 30)["nasa_risks"] == []          # a normal day links to nothing
     assert "Linked NASA Human Research Program risks" in m.report("B", 121)
+
+
+def test_severe_symptom_is_immediate_act():
+    """A reported severe symptom is ACT at once, with no two-day streak."""
+    from engine.manual import QuickCheck
+    q = QuickCheck(m)
+    vals = dict(q.defaults("C")["values"], symptoms=["chest pain"])
+    d = q.add("C", vals, {})["decision"]
+    assert d["state"] == "ACT" and d["rule_codes"][0]["rule"] == "symptom"
+    assert d["actions"][0].startswith("Reported severe symptom")
+
+
+def test_clinical_results_and_personal_dose():
+    """Bone and muscle results come from periodic tests with their source; immune has none
+    in the demo, so it says unavailable; each astronaut has a personal dose of their own."""
+    bones = m.assess("A", 100)["systems"]["bones"]
+    assert "imported clinical result" in bones["data_status"]
+    assert any("Bone mineral density" in r["text"] and "simulated clinical result" in r["text"] for r in bones["clinical"])
+    assert m.assess("A", 50)["systems"]["bones"]["clinical"][0]["day"] == 1   # day-90 scan not seen yet
+    immune = m.assess("A", 100)["systems"]["immune"]
+    assert any("unavailable" in x for x in immune["data_status"])
+    a, c = m.assess("A", 61)["dosimetry"], m.assess("C", 61)["dosimetry"]
+    assert a["available"] and a["today"] > c["today"]     # Amira's spacewalk day adds dose
+    assert a["mission_total"] != m.assess("A", 61)["cabin"][1]["mission_total"]
 
 
 if __name__ == "__main__":
