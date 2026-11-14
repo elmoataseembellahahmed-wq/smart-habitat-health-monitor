@@ -16,6 +16,7 @@ from .integrity import band_swap, drift, WRIST_SIGNALS
 from . import quality
 from . import version
 from . import access
+from .nasa_resources import risks_for
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
                       CAMERA_SIGNALS, MIN_CAMERA_MINUTES, wrist_fatigue)
 
@@ -225,6 +226,7 @@ class HealthMonitor:
         decision["sensor_faults"] = quality.sensor_faults(issues)
         decision["self_report_skipped"] = any(i["code"] == "skipped" for i in issues.values())
         decision["coverage"] = quality.coverage(signals)
+        decision["nasa_risks"] = risks_for(decision)
         learned = self.learning_days(aid, day)
         decision["versions"] = {**version.stamp(),
                                 "personal_normal": f"{aid}-day{self.update_day(day)}",

@@ -67,6 +67,13 @@ def build_report(member, day, decision, trend, cabin):
             lines.append(f"  - {x['reason']}")
         lines.append("")
 
+    risks = decision.get("nasa_risks") or []
+    if risks:
+        lines.append("Linked NASA Human Research Program risks (nasa.gov/hrp/risks):")
+        for r in risks:
+            lines.append(f"  - {r['risk']} (hazard: {r['hazard']})")
+        lines.append("")
+
     ai = decision.get("ai")
     if ai:
         lines.append(f"AI anomaly check (Isolation Forest): score {ai['score']:.2f} "

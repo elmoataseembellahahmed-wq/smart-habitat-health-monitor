@@ -258,6 +258,13 @@ def build_report_ar(member, day, decision, trend, cabin):
                      f"إلى {_fmt(x['now'], d)} {unit} منذ بداية المهمة ({x['shift']:.1f} انحراف معياري).")
         L.append("")
 
+    risks = decision.get("nasa_risks") or []
+    if risks:
+        L.append("مخاطر برنامج أبحاث الإنسان في ناسا المرتبطة بنتائج اليوم (nasa.gov/hrp/risks):")
+        for r in risks:
+            L.append(f"  - {r['risk']} ({r['hazard']})")
+        L.append("")
+
     ai = decision.get("ai")
     if ai:
         L.append(f"فحص الذكاء الاصطناعي (Isolation Forest): الدرجة {ai['score']:.2f} "

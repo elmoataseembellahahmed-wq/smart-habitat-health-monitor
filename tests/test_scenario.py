@@ -442,6 +442,19 @@ def test_manual_csv_upload():
     assert "DAILY HEALTH REPORT" in u.report("B", 121)
 
 
+def test_findings_link_to_nasa_hrp_risks():
+    """Every finding names the NASA Human Research Program risk it relates to."""
+    from engine.nasa_resources import RISK_BY_SIGNAL, RISK_BY_PATTERN
+    from engine.signals import CORE_SIGNALS
+    from engine.fusion import PATTERNS
+    assert set(CORE_SIGNALS) <= set(RISK_BY_SIGNAL) and set(PATTERNS) <= set(RISK_BY_PATTERN)
+    names = [r["risk"] for r in m.assess("B", 121)["nasa_risks"]]
+    assert "Risk of Behavioral Changes and Psychiatric Disorders" in names
+    assert "Risk of Inadequate Sleep and Irregular Schedules" in names
+    assert m.assess("A", 30)["nasa_risks"] == []          # a normal day links to nothing
+    assert "Linked NASA Human Research Program risks" in m.report("B", 121)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
