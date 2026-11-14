@@ -28,9 +28,25 @@ def valid_role(role, crew_ids):
     return role in ROLES or role in crew_ids
 
 
+_log_file = None
+
+
+def set_log_file(path):
+    """Also write every audit entry to an append-only local file (survives a restart)."""
+    global _log_file
+    from pathlib import Path
+    _log_file = Path(path)
+    _log_file.parent.mkdir(parents=True, exist_ok=True)
+
+
 def log(role, aid, what):
-    _audit.append({"time": round(time.time()), "role": role, "astronaut": aid, "what": what})
+    entry = {"time": round(time.time()), "role": role, "astronaut": aid, "what": what}
+    _audit.append(entry)
     del _audit[:-1000]
+    if _log_file:
+        import json
+        with _log_file.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
 
 
 def audit():

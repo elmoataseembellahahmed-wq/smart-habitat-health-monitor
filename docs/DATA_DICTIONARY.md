@@ -25,6 +25,8 @@ Generated from the code by `tools/make_docs.py` (software 1.4.0). **13 health si
 |---|---|---|---|---|---|
 | `co2` | Cabin CO2 | mmHg | 3.0 | 4.0 | Simulated |
 | `radiation` | Radiation dose (cabin dosimeter, effective dose) | mSv/day | 1.0 | 2.0 | Simulated |
+| `temperature` | Cabin temperature | °C | 27.0 | 30.0 | Simulated |
+| `humidity` | Cabin relative humidity | % | 75.0 | 85.0 | Simulated |
 
 ## Support fields
 

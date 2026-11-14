@@ -24,12 +24,24 @@ What the plan asked for, and what is in the code now (branch `v2`). "Done" means
 | Severe symptoms entry | Done: manual page check boxes, CSV `symptoms` column | `frontend/manual.html`, `engine/manual.py` |
 | Each finding linked to its NASA HRP risk | Done | `engine/nasa_resources.py` |
 
+## Second round (same plan, remaining items)
+
+| Item | Status | Where |
+|---|---|---|
+| Data ingestion layer: device ID, own timestamp, paired devices only, duplicates dropped, late samples kept on their day, impossible values dropped | Done and tested | `engine/ingest.py`, `POST /api/ingest`, `GET /api/devices`, `test_ingestion_layer` |
+| Signal quality from raw samples: packet loss (longest gap), noise | Done | `engine/ingest.py` (`daily`) |
+| Offline-first local storage that survives a restart, with de-duplication | Done: append-only `data/live/ingest_log.jsonl`, reloaded on start | `engine/ingest.py` |
+| Audit log of views and crew actions, kept on disk | Done: `POST /api/ack` (crew acknowledges an alert), `data/live/audit_log.jsonl` | `engine/access.py`, `run_offline.py` |
+| ESP32 wristband code (heart rate, SpO2, skin temperature, device ID, timestamp, offline buffer) | Written, **not yet tested on a board** | `hardware/esp32_wristband/esp32_wristband.ino` |
+| A software stand-in for the device (link loss, duplicate, bad value) | Done | `tools/fake_device.py` |
+| Cabin temperature and humidity | Done with a published limit: NASA-STD-3001 [V2 6012] envelope 18 °C/75% to 27 °C/25% (OCHMO-TB-002); a missing sensor shows "unavailable" | `engine/signals.py`, `engine/analysis.py` |
+
 ## Roadmap (needs hardware, data or experts)
 
 | Item | Why not now |
 |---|---|
-| ESP32 wristband with real sensors, timestamps, device ID | Needs hardware (P1) |
-| Cabin temperature, humidity, O2 partial pressure, contaminants | The plan says: add an indicator only after choosing a reliable sensor and its limits |
+| Test the ESP32 code on a real board | Needs the hardware (P1) |
+| Cabin O2 partial pressure, total pressure, contaminants | Their limits (NASA-STD-3001 [V2 6003] Table 6.2-1, [V2 6006], [V2 6050]) are not yet sourced into the code; the plan says not to add an indicator without its limits |
 | ECG input | Needs a suitable device |
 | NASA OSDR real data, clinical review of thresholds and actions | Needs data access and flight-surgeon review (P3) |
-| Offline sync with de-duplication, real log-in, encryption | Designed in `docs/PRIVACY_SECURITY.md`, not built |
+| Real log-in, encryption, syncing to Earth | Designed in `docs/PRIVACY_SECURITY.md`, not built |

@@ -34,6 +34,13 @@ up to 20 minutes to reach Earth.
 | `docs/TEST_REPORT.md` | Every automated test and its result |
 | `docs/ARCHITECTURE.md` | The architecture diagram |
 
+## Two versions of the code
+* **`main`**: the first complete version, kept unchanged on purpose as a stable reference (the version first shown to the team and mentors).
+* **`v2`** (this branch, **the submitted version**): everything in `main` plus the manual test page, the gap-analysis fixes, the NASA/CSA resources, the development plan items (immediate symptom alerts, clinical results, personal dosimetry, cabin temperature and humidity) and the real-device ingestion layer with the ESP32 code. Same demo story and same decisions as `main`; 40 tests.
+
+## Real devices (ingestion layer)
+Paired wristbands (`WB-A`, `WB-B`, `WB-C`) send readings to `POST /api/ingest` with their own device ID and timestamp. Without hardware, `python tools/fake_device.py --device WB-B --minutes 30 --fast --drop --dup --bad` acts like the ESP32; see the result at `/api/devices`. The ESP32 code is in `hardware/esp32_wristband/` (not yet tested on a board).
+
 ## Manual test (branch `v2`)
 Open **http://127.0.0.1:8000/manual** (or click "Manual test" on the dashboard):
 * **Quick check:** type one astronaut's readings for the next day (after day 125) and see the decision and the full report at once. Add several days in a row to test streaks, leave a box empty to test a missing reading.

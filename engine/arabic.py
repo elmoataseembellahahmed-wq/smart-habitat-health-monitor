@@ -44,7 +44,9 @@ SIGNAL_AR = {
     "glucose": ("سكر الدم (متوسط اليوم)", "ملغ/دسل"),
 }
 CABIN_AR = {"co2": ("ثاني أكسيد الكربون في المقصورة", "ملم زئبق"),
-            "radiation": ("جرعة الإشعاع", "ملّي سيفرت في اليوم")}
+            "radiation": ("جرعة الإشعاع", "ملّي سيفرت في اليوم"),
+            "temperature": ("حرارة المقصورة", "°م"),
+            "humidity": ("الرطوبة النسبية في المقصورة", "%")}
 
 PATTERN_AR = {
     "stress_fatigue": ("ضغط جسدي ونفسي معًا",
@@ -189,6 +191,8 @@ def cabin_reason_ar(c):
     name, unit = CABIN_AR[c["signal"]]
     meta = CABIN_SIGNALS[c["signal"]]
     level_word = "التدخّل" if c["level"] == "act" else "المراقبة"
+    if c["value"] < meta[c["level"]] and "low_" + c["level"] in meta:
+        return f"{name} = {_fmt(c['value'], meta['decimals'])} {unit}، تحت حد {level_word} ({meta['low_' + c['level']]} {unit})."
     return f"{name} = {_fmt(c['value'], meta['decimals'])} {unit}، فوق حد {level_word} ({meta[c['level']]} {unit})."
 
 

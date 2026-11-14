@@ -26,7 +26,7 @@ from .signals import CORE_SIGNALS, CABIN_SIGNALS
 
 EXTRA = ["camera_minutes", "exercise_minutes", "personal_dose"]
 COLUMNS = (["day", "astronaut_id", "astronaut_name", "role"] + CORE_SIGNALS + EXTRA
-           + ["symptoms", "cabin_co2", "radiation"])
+           + ["symptoms", "cabin_co2", "radiation", "cabin_temperature", "cabin_humidity"])
 MIN_DAYS = 15  # 14 days to learn the normal + at least one day to judge
 
 
@@ -117,7 +117,8 @@ def template_csv(full=False):
             w.writerow([day, m["id"], m["name"], m["role"]]
                        + ["" if r.get(k) is None else r[k] for k in CORE_SIGNALS + EXTRA]
                        + [";".join(r.get("symptoms") or [])]
-                       + [data["cabin"][day]["co2"], data["cabin"][day]["radiation"]])
+                       + [data["cabin"][day]["co2"], data["cabin"][day]["radiation"],
+                          data["cabin"][day].get("temperature", ""), data["cabin"][day].get("humidity", "")])
     return out.getvalue()
 
 
@@ -161,7 +162,14 @@ def parse_csv(text):
             errors.append(f"Row {i}: cabin_co2 and radiation must be numbers.")
             continue
         if co2 is not None and rad is not None:
-            data["cabin"].setdefault(day, {"co2": co2, "radiation": rad})
+            entry = data["cabin"].setdefault(day, {"co2": co2, "radiation": rad})
+            for col, key in (("cabin_temperature", "temperature"), ("cabin_humidity", "humidity")):
+                try:
+                    v = _num(row.get(col))
+                except ValueError:
+                    v = None
+                if v is not None:
+                    entry.setdefault(key, v)
     if errors:
         return None, None, errors[:20]
     if not data["crew"]:

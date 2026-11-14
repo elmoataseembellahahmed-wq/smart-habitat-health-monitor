@@ -8,3 +8,6 @@ venv/
 # Personal webcam calibration and downloaded models (created on first run)
 camera/baselines/
 camera/models/
+
+# local live data and audit logs
+data/live/

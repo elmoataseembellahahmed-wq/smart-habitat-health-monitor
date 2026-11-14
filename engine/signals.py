@@ -104,6 +104,18 @@ CABIN_SIGNALS = {
         "name": "Radiation dose (cabin dosimeter, effective dose)", "unit": "mSv/day", "device": "cabin",
         "watch": 1.0, "act": 2.0, "decimals": 2,
     },
+    # NASA-STD-3001 Vol. 2 [V2 6012] crew health environmental limits (OCHMO-TB-002): operating
+    # envelope 18 °C / 75% humidity to 27 °C / 25% humidity. Outside it = WATCH (published);
+    # the ACT values further out are project assumptions. Oxygen partial pressure is NOT added:
+    # its limits are in Table 6.2-1 of [V2 6003], which we have not yet sourced.
+    "temperature": {
+        "name": "Cabin temperature", "unit": "°C", "device": "cabin",
+        "low_watch": 18.0, "watch": 27.0, "low_act": 15.0, "act": 30.0, "decimals": 1, "optional": True,
+    },
+    "humidity": {
+        "name": "Cabin relative humidity", "unit": "%", "device": "cabin",
+        "low_watch": 25.0, "watch": 75.0, "low_act": 15.0, "act": 85.0, "decimals": 0, "optional": True,
+    },
 }
 
 # Mission-level radiation references (NASA-STD-3001 Vol 1 Rev C, via OCHMO-TB-020):

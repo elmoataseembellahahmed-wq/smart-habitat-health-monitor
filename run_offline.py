@@ -14,6 +14,7 @@ from urllib.parse import urlparse, parse_qs
 
 from engine import HealthMonitor, live, access
 from engine.manual import QuickCheck, Upload, template_csv
+from engine.ingest import Ingest
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
@@ -23,6 +24,10 @@ monitor.status(monitor.days[-1])  # learn every week of the mission once, at sta
 quick = QuickCheck(monitor)        # manual test: new days typed in by hand
 uploaded = Upload()                # manual test: a whole mission from a CSV file
 manual_lock = threading.Lock()
+LIVE_DIR = ROOT / "data" / "live"
+access.set_log_file(LIVE_DIR / "audit_log.jsonl")           # who viewed what, and crew actions
+devices = Ingest({"WB-A": "A", "WB-B": "B", "WB-C": "C"},   # paired wristbands (device -> astronaut)
+                 log_path=LIVE_DIR / "ingest_log.jsonl")
 MAX_UPLOAD = 5_000_000
 
 class Handler(BaseHTTPRequestHandler):
@@ -50,6 +55,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, (FRONTEND / "index.html").read_bytes(), "text/html")
             if parts == ["manual"]:
                 return self._send(200, (FRONTEND / "manual.html").read_bytes(), "text/html")
+            if parts == ["api", "devices"]:
+                return self._json(devices.devices())
+            if parts == ["api", "ingest", "daily"]:
+                return self._json(devices.daily(q.get("aid", ["A"])[0], int(q.get("day", ["1"])[0])))
             if parts[:2] == ["api", "manual"]:
                 with manual_lock:
                     if parts[2:] == ["defaults"]:
@@ -100,6 +109,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path in ("/api/ingest", "/api/ack"):
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if length > 1_000_000:
+                    return self._send(413, json.dumps({"detail": "Too large"}))
+                body = json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, json.JSONDecodeError) as e:
+                return self._send(400, json.dumps({"detail": str(e)}))
+            if path == "/api/ingest":
+                msgs = body if isinstance(body, list) else [body]   # a device may send its buffer at once
+                with manual_lock:
+                    return self._json({"results": [devices.accept(m) for m in msgs[:500]]})
+            role = str(body.get("role", "surgeon"))
+            if not access.valid_role(role, [m["id"] for m in monitor.crew]):
+                return self._send(400, json.dumps({"detail": "Unknown role"}))
+            access.log(role, str(body.get("astronaut", "")),
+                       f"ACKNOWLEDGED day {body.get('day')}: {str(body.get('note', ''))[:200]}")
+            return self._json({"ok": True})
         if path.startswith("/api/manual/"):
             try:
                 length = int(self.headers.get("Content-Length", 0))

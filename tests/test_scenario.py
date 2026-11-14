@@ -481,8 +481,50 @@ def test_clinical_results_and_personal_dose():
     assert a["mission_total"] != m.assess("A", 61)["cabin"][1]["mission_total"]
 
 
+def test_ingestion_layer(tmp_path):
+    """Real-device path: paired devices only, duplicates dropped, late samples kept on
+    their own day, impossible values dropped, everything saved locally and reloaded."""
+    from engine.ingest import Ingest
+    t0 = 1_800_000_000.0
+    clock = [t0 + 3 * 3600]
+    ing = Ingest({"WB-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
+    assert ing.accept({"device_id": "WB-X", "timestamp": t0, "readings": {"heart_rate": 60}})["status"] == "rejected"
+    for i in range(10):
+        r = ing.accept({"device_id": "WB-B", "timestamp": t0 + 600 + i * 60,
+                        "readings": {"heart_rate": 64 + i % 3, "spo2": 98, "body_temp": 31.0}})
+        assert r["status"] == "accepted" and r["day"] == 1 and "body_temp: 31 outside 34-42 (sensor error)" in r["dropped"]
+    assert ing.accept({"device_id": "WB-B", "timestamp": t0 + 600, "readings": {"heart_rate": 64}})["status"] == "duplicate"
+    late = ing.accept({"device_id": "WB-B", "timestamp": t0 + 300, "readings": {"heart_rate": 63}})
+    assert late["status"] == "accepted" and late["late"]
+    future = ing.accept({"device_id": "WB-B", "timestamp": clock[0] + 3600, "readings": {"heart_rate": 63}})
+    assert future["status"] == "rejected" and "clock" in future["reason"]
+    day = ing.daily("B", 1)
+    assert day["samples"] == 11 and day["reading"]["heart_rate"] == 65 and "body_temp" not in day["reading"]
+    assert day["quality"]["heart_rate"]["ok"]
+    again = Ingest({"WB-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
+    assert again.daily("B", 1)["samples"] == 11                 # reloaded after a restart
+
+
+def test_cabin_temperature_and_humidity():
+    """NASA-STD-3001 [V2 6012] envelope; a missing optional sensor says unavailable."""
+    from engine.analysis import analyse_cabin
+    cab = {1: {"co2": 2.0, "radiation": 0.5, "temperature": 28.5, "humidity": 20}}
+    out = {c["signal"]: c for c in analyse_cabin(1, cab)}
+    assert out["temperature"]["level"] == "watch" and "above" in out["temperature"]["reason"]
+    assert out["humidity"]["level"] == "watch" and "below" in out["humidity"]["reason"]
+    none = {c["signal"]: c for c in analyse_cabin(1, {1: {"co2": 2.0, "radiation": 0.5}})}
+    assert none["temperature"]["unavailable"] and none["temperature"]["value"] is None
+    assert all(c["level"] is None for c in m.assess("A", 60)["cabin"] if c["signal"] in ("temperature", "humidity"))
+
+
 if __name__ == "__main__":
+    import inspect
+    import tempfile
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
-            fn()
+            if "tmp_path" in inspect.signature(fn).parameters:
+                with tempfile.TemporaryDirectory() as d:
+                    fn(Path(d))
+            else:
+                fn()
             print("passed:", name)

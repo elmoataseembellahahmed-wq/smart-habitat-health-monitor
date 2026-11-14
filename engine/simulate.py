@@ -208,6 +208,12 @@ def generate(seed=42):
         crew_data[aid][day]["mood_score"] = None
         crew_data[aid][day]["stress_words"] = None
 
+    # Cabin temperature and humidity (own random stream: other values unchanged).
+    rng6 = random.Random(seed + 6)
+    for day in range(MISSION_START, MISSION_END + 1):
+        cabin[day]["temperature"] = round(rng6.gauss(22.0, 0.6), 1)
+        cabin[day]["humidity"] = round(rng6.gauss(45.0, 4.0))
+
     # Exercise log (own random stream: other values unchanged).
     rng5 = random.Random(seed + 4)
     for member in CREW:

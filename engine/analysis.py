@@ -115,13 +115,30 @@ def analyse_cabin(day, cabin):
     """Cabin readings are judged against fixed limits shared by the whole crew."""
     out = []
     for key, meta in CABIN_SIGNALS.items():
-        value = cabin[day][key]
-        level = "act" if value >= meta["act"] else "watch" if value >= meta["watch"] else None
+        value = cabin[day].get(key)
+        if value is None:
+            if meta.get("optional"):
+                out.append({"signal": key, "name": meta["name"], "unit": meta["unit"], "value": None,
+                            "level": None, "reason": None, "unavailable": True,
+                            "note": f"{meta['name']}: sensor unavailable (no value is guessed)."})
+                continue
+            raise KeyError(f"Cabin value '{key}' missing on day {day}")
+        level, side = None, "above"
+        if value >= meta["act"]:
+            level = "act"
+        elif value >= meta["watch"]:
+            level = "watch"
+        elif "low_act" in meta and value <= meta["low_act"]:
+            level, side = "act", "below"
+        elif "low_watch" in meta and value <= meta["low_watch"]:
+            level, side = "watch", "below"
         reason = None
         if level:
-            limit = meta[level]
+            limit = meta[level] if side == "above" else meta["low_" + level]
             reason = (f"{meta['name']} is {_fmt(key, value, CABIN_SIGNALS)} {meta['unit']}, "
-                      f"above the {level} limit of {limit} {meta['unit']}.")
+                      f"{side} the {level} limit of {limit} {meta['unit']}.")
+            if key in ("temperature", "humidity"):
+                reason += " (NASA-STD-3001 [V2 6012] envelope: 18 °C/75% to 27 °C/25%.)"
         item = {"signal": key, "name": meta["name"], "unit": meta["unit"],
                 "value": value, "level": level, "reason": reason}
         past = [cabin[d][key] for d in cabin if d <= day]

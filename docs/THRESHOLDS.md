@@ -50,6 +50,8 @@ On 20 new evaluation missions these gave 0.56 false WATCH and 0 false ACT per 10
 | CO2, WATCH | 3.0 mmHg | Published reference | NASA-STD-3001 Vol. 2 Rev D [V2 6004]: the average **one-hour** CO2 partial pressure in the habitable volume no more than 3 mmHg (OCHMO-TB-004). Our prototype checks a daily value, which is less strict than a 1-hour average |
 | CO2, ACT | 4.0 mmHg | Project assumption | Above the standard, where crew symptoms are more likely |
 | CO2, 7-day average reference | 2.5 mmHg | Published reference | OCHMO-TB-004: keeping the 7-day average below 2.5 mmHg keeps headache risk below about 1%. Shown as context, not an alarm |
+| Cabin temperature, WATCH | below 18 °C or above 27 °C | Published reference | NASA-STD-3001 Vol. 2 [V2 6012] crew health environmental limits, operating envelope 18 °C/75% humidity to 27 °C/25% humidity (OCHMO-TB-002). ACT at 15 / 30 °C is a project assumption. Informational: it does not change a health status |
+| Cabin humidity, WATCH | below 25% or above 75% | Published reference | Same envelope. ACT at 15 / 85% is a project assumption |
 | Radiation, WATCH / ACT | 1.0 / 2.0 mSv per day | Project assumption | A day far above the normal ~0.5 mSv/day suggests a solar particle event: go to the shelter and follow mission procedures |
 | Radiation, mission total | shown against 600 mSv | Published reference | NASA-STD-3001 Vol. 1: career effective dose below 600 mSv; one solar particle event below 250 mSv (OCHMO-TB-020). Our dosimeter values are simulated |
 
@@ -60,6 +62,7 @@ Personal normals (for example Amira's heart rate 58, Ben's 64), noise levels and
 ## Sources
 
 * NASA OCHMO Technical Brief OCHMO-TB-004, Carbon Dioxide (NASA-STD-3001 Vol. 2 Rev D [V2 6004]): https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf
+* NASA OCHMO Technical Brief OCHMO-TB-002, ECLSS (NASA-STD-3001 Vol. 2 Rev D [V2 6012]): https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-002-eclss.pdf
 * NASA OCHMO Technical Brief OCHMO-TB-020, Design for Ionizing Radiation Protection (NASA-STD-3001 Vol. 1 Rev C): https://www.nasa.gov/sites/default/files/atoms/files/radiation_protection_technical_brief_ochmo.pdf
 * American Heart Association, blood pressure categories (hypertensive crisis above 180/120).
 * American Diabetes Association, Standards of Care: level 2 hypoglycaemia below 54 mg/dL.
