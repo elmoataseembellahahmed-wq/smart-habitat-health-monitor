@@ -517,6 +517,40 @@ def test_cabin_temperature_and_humidity():
     assert all(c["level"] is None for c in m.assess("A", 60)["cabin"] if c["signal"] in ("temperature", "humidity"))
 
 
+def test_personal_dose_is_separate_and_labelled():
+    """Problem 1: personal dose has its own source, IDs, unit, period and status; cabin is separate."""
+    d = m.assess("A", 60)
+    rec = d["dosimetry"]["record"]
+    assert rec["data_type"] == "personal_cumulative_dose" and rec["astronaut_id"] == "A"
+    assert rec["device_id"] == "DOS-A" and rec["unit"] == "mSv" and rec["data_status"] == "simulated"
+    assert rec["timestamp"] and rec["period_total"] == "mission days 1-60"
+    cab = d["cabin_radiation"]
+    assert cab["data_type"] == "cabin_environment" and "not a personal dose" in cab["note"]
+    assert d["dosimetry"]["today"] != cab["value"]          # EVA day: personal dose is higher
+
+
+def test_two_alert_paths():
+    """Problem 4: verified critical limits give ACT at once; gradual change needs 2 days;
+    a faulty reading never fires the immediate path."""
+    from engine.manual import QuickCheck
+    assert m.assess("B", 121)["alert_path"] == "slow_deterioration"
+    assert m.assess("B", 120)["state"] == "WATCH"                       # one day only: no ACT
+    co2 = m.assess("A", 125)
+    assert co2["state"] == "ACT" and co2["alert_path"] == "immediate_safety"
+    assert co2["immediate_alerts"][0]["trigger"] == "co2"
+    assert m.assess("A", 124)["alert_path"] == "environment_watch"
+    q = QuickCheck(m)
+    v = q.defaults("C")["values"]; v["spo2"] = 89
+    r = q.add("C", v, {})["decision"]
+    assert r["state"] == "ACT" and r["alert_path"] == "immediate_safety"     # first day, no streak
+    a = r["immediate_alerts"][0]
+    assert a["trigger"] == "spo2" and a["value"] == 89 and a["data_status"] == "manually entered"
+    assert a["why_trusted"] and isinstance(a["mission_day"], int)
+    v = q.defaults("C")["values"]; v["spo2"] = 40                         # impossible: a sensor fault
+    r = q.add("C", v, {})["decision"]
+    assert r["alert_path"] != "immediate_safety" and r["sensor_faults"]
+
+
 if __name__ == "__main__":
     import inspect
     import tempfile

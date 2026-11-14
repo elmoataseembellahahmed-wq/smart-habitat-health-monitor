@@ -201,6 +201,7 @@ class Upload:
         data, crew, errors = parse_csv(text)
         if errors:
             return {"ok": False, "errors": errors}
+        data["data_status"] = "manually entered"
         self.m = HealthMonitor(data=data, crew=crew)
         grid = {m["id"]: [summary(self.m, m["id"], d) for d in self.m.days if d > 14] for m in crew}
         wide = {d: self.m.status(d)["crew_wide"]["notes"] for d in self.m.days if d > 14}

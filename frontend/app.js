@@ -283,7 +283,11 @@ function renderDetail(m) {
     `${m.reported_symptoms.join(", ")}: immediate ACT.`));
   if (m.insufficient_data) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Not enough data: "),
     "too many signals are unavailable today to confirm this status."));
+  if (m.alert_path === "immediate_safety") extra.push(el("li", { class: "integrity" }, el("strong", {}, "Immediate safety alert: "),
+    m.alert_path_note, " ", (m.immediate_alerts || []).map((a) => `${a.trigger}${a.value == null ? "" : " = " + a.value + (a.unit ? " " + a.unit : "")} (${a.source}, ${a.data_status})`).join("; ")));
+  else if (m.alert_path === "slow_deterioration" || m.alert_path === "environment_watch") extra.push(el("li", {}, el("strong", {}, "Alert path: "), m.alert_path_note));
   if (m.dosimetry?.available) extra.push(el("li", {}, el("strong", {}, "Personal radiation dose: "), m.dosimetry.note));
+  if (m.cabin_radiation) extra.push(el("li", {}, el("strong", {}, "Cabin radiation (environment): "), m.cabin_radiation.note));
   if (m.self_report_skipped) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Diary: "),
     "skipped today (optional), so mood was not assessed."));
   if (m.band_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Wristband check: "), m.band_check.message));

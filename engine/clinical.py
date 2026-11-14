@@ -115,17 +115,47 @@ def add_personal_dose(crew_data, cabin, seed=42, eva_days=None):
             days[day].setdefault("personal_dose", round(dose, 3))
 
 
-def dosimetry(days, day, career_limit=600.0):
-    """Personal dose today and the mission total so far, from this astronaut's own dosimeter."""
+def dosimetry(days, day, career_limit=600.0, aid=None, data_status="simulated"):
+    """Personal dose today and the mission total so far, from this astronaut's own dosimeter.
+
+    The personal dose is kept apart from the cabin radiation reading: the cabin value
+    describes the environment, this one is the dose the astronaut's own dosimeter received.
+    Every value comes with its source, device ID, astronaut ID, unit, period and status."""
     today = days[day].get("personal_dose")
     vals = [days[d].get("personal_dose") for d in days if d <= day]
     have = [v for v in vals if v is not None]
+    record = {
+        "data_type": "personal_cumulative_dose",
+        "astronaut_id": aid,
+        "device_id": f"DOS-{aid}" if aid else None,
+        "source": "Personal dosimeter worn by the astronaut",
+        "unit": "mSv",
+        "timestamp": f"mission day {day}, end of day (UTC)",
+        "period_today": f"24 h (mission day {day})",
+        "period_total": f"mission days {min(days)}-{day}",
+        "data_status": data_status,
+    }
     if today is None and not have:
-        return {"available": False, "note": "Personal dosimeter: no reading (unavailable)."}
+        return {"available": False, "record": record,
+                "note": "Personal dosimeter: no reading (unavailable)."}
     total = sum(have)
+    tag = {"simulated": "simulated", "manually entered": "manually entered"}.get(data_status, data_status)
     return {"available": True, "today": today, "mission_total": round(total, 1),
             "pct_career": round(total / career_limit * 100, 1), "missing_days": len(vals) - len(have),
-            "note": (f"Personal dosimeter (simulated, linked to this astronaut's ID): "
-                     f"{'no reading today' if today is None else f'{today:.2f} mSv today'}, "
-                     f"{total:.1f} mSv this mission ({total / career_limit * 100:.0f}% of the 600 mSv career limit)."
+            "record": record,
+            "note": (f"Personal dosimeter {record['device_id']} ({tag}, linked to astronaut {aid}): "
+                     f"{'no reading today' if today is None else f'{today:.2f} mSv in the last 24 h'}, "
+                     f"{total:.1f} mSv over {record['period_total']} "
+                     f"({total / career_limit * 100:.0f}% of the 600 mSv career limit)."
                      + (f" {len(vals) - len(have)} day(s) without a reading." if len(vals) != len(have) else ""))}
+
+
+def cabin_radiation(cabin, day, data_status="simulated"):
+    """Cabin radiation is an ENVIRONMENT reading: it is never shown as anyone's personal dose."""
+    value = (cabin.get(day) or {}).get("radiation")
+    return {"data_type": "cabin_environment", "source": "Cabin radiation monitor (habitat, not worn)",
+            "device_id": "CABIN-RAD-1", "value": value, "unit": "mSv/day",
+            "timestamp": f"mission day {day} (daily value)", "data_status": data_status,
+            "note": ("Cabin radiation (environment, not a personal dose): "
+                     + ("no reading" if value is None else f"{value:.2f} mSv/day")
+                     + f" [{data_status}].")}

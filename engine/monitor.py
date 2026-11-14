@@ -41,6 +41,9 @@ class HealthMonitor:
         self.clinical = clin.demo_clinical([m["id"] for m in self.crew]) if demo else clin.ClinicalStore()
         if demo:
             clin.add_personal_dose(self.data["crew"], self.data["cabin"], eva_days={"A": {60, 61}})
+        # Where the data came from, shown on every dose and alert record.
+        self.data_status = "simulated" if demo else self.data.get("data_status", "manually entered")
+        self.day_status = {}
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
         # Sensor quality first: faulty readings are kept aside and never analysed.
@@ -69,11 +72,13 @@ class HealthMonitor:
         self._band = {}         # (aid, day) -> wristband swap check result
 
     # ---------- adding data (manual entry, or a live feed) ----------
-    def add_day(self, day, readings, cabin):
+    def add_day(self, day, readings, cabin, data_status="manually entered"):
         """Add one new mission day: {astronaut id: reading} and the cabin values.
-        The new readings go through the same quality checks as everything else."""
+        The new readings go through the same quality checks as everything else.
+        data_status says how the day was obtained (manually entered / real device)."""
         if day in self.data["cabin"]:
             raise ValueError(f"Day {day} already exists")
+        self.day_status[day] = data_status
         for aid, reading in readings.items():
             self.data["crew"][aid][day] = dict(reading)
         self.data["cabin"][day] = dict(cabin)
@@ -249,7 +254,10 @@ class HealthMonitor:
         decision["reported_symptoms"] = sym
         # Not enough data is said plainly: it never reads as a confident NORMAL.
         decision["insufficient_data"] = decision["coverage"]["confidence"] == "low"
-        decision["dosimetry"] = clin.dosimetry(self.data["crew"][aid], day)
+        decision["dosimetry"] = clin.dosimetry(self.data["crew"][aid], day, aid=aid,
+                                               data_status=self.status_of(day))
+        decision["cabin_radiation"] = clin.cabin_radiation(self.data["cabin"], day, self.status_of(day))
+        self._alert_paths(aid, day, decision)
         decision["nasa_risks"] = risks_for(decision)
         learned = self.learning_days(aid, day)
         decision["versions"] = {**version.stamp(),
@@ -259,6 +267,66 @@ class HealthMonitor:
         decision["systems"] = body_systems(signals, cabin, self.exercise(aid, day),
                                            {d: self.clinical.for_domain(aid, d, day) for d in ("bones", "immune")})
         return decision
+
+    # Rules that give ACT at once, with no 2-day wait (the immediate safety path).
+    IMMEDIATE_RULES = {"safety_limit", "cabin_act", "symptom"}
+
+    def status_of(self, day):
+        """simulated / manually entered / real device, for one mission day."""
+        return self.day_status.get(day, self.data_status)
+
+    def _alert_paths(self, aid, day, decision):
+        """Split the decision into two independent alert paths.
+
+        * immediate_safety: a verified critical limit (safety limit, cabin CO2 ACT limit) or a
+          severe symptom. ACT straight away, no 2-day persistence needed.
+        * slow_deterioration: changes against the personal normal; ACT needs 2+ days.
+        A reading only counts for the immediate path if it passed the sensor-quality check
+        (faulty readings are set aside before analysis and reported separately)."""
+        codes = {c["rule"] for c in decision["rule_codes"]}
+        immediate = codes & self.IMMEDIATE_RULES
+        alerts = []
+        for s in decision["signals"]:
+            if s.get("level") == "critical" and not s.get("untrusted") and not s.get("missing"):
+                alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
+                               "trigger": s["signal"], "value": s.get("value"), "unit": s.get("unit"),
+                               "limit_rule": "absolute safety limit (engine/signals.py, docs/THRESHOLDS.md)",
+                               "source": ("daily check-in" if s["signal"] in ("mood_score", "stress_words")
+                                          else "wristband"), "data_status": self.status_of(day),
+                               "why_trusted": "reading passed the quality check (paired device, in range, "
+                                              "not stuck, not missing)"})
+        for c in decision["cabin"]:
+            if c.get("level") == "act":
+                alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
+                               "trigger": c["signal"], "value": c.get("value"), "unit": c.get("unit"),
+                               "limit_rule": "NASA-STD-3001 cabin limit (docs/THRESHOLDS.md)",
+                               "source": "cabin sensor", "data_status": self.status_of(day),
+                               "why_trusted": "cabin sensor reading present and in sensor range"})
+        for sym in decision.get("reported_symptoms") or []:
+            alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
+                           "trigger": "symptom", "value": sym, "unit": None,
+                           "limit_rule": "severe symptom list (engine/clinical.py)",
+                           "source": "astronaut self-report", "data_status": self.status_of(day),
+                           "why_trusted": "reported directly by the astronaut"})
+        if immediate:
+            path = "immediate_safety"
+        elif decision["state"] in ("WATCH", "ACT") and not decision["flags"] and not decision.get("drift") \
+                and any(c.get("level") for c in decision["cabin"]):
+            path = "environment_watch"
+        elif decision["state"] in ("WATCH", "ACT"):
+            path = "slow_deterioration"
+        else:
+            path = None
+        decision["alert_path"] = path
+        decision["immediate_alerts"] = alerts
+        decision["alert_path_note"] = {
+            "immediate_safety": "Immediate safety alert: a verified critical limit or severe symptom. "
+                                "ACT now, no 2-day wait. Follow the reviewed procedure; this is not a diagnosis.",
+            "slow_deterioration": "Slow deterioration path: change against this astronaut's normal. "
+                                  "ACT needs the change to last 2+ days.",
+            "environment_watch": "Cabin environment watch: a cabin reading is outside its normal range; "
+                                 "this is about the habitat, not this astronaut's body.",
+            None: None}[path]
 
     def _integrity(self, aid, day, decision):
         """Add the wristband swap check and the slow-drift check to a day's decision."""

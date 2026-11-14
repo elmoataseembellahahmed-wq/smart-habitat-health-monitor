@@ -20,6 +20,13 @@ def build_report(member, day, decision, trend, cabin):
     cov = decision.get("coverage")
     if cov:
         lines.append(f"Data coverage: {cov['confidence'].upper()} - {cov['note']}")
+    if decision.get("alert_path_note"):
+        lines.append(f"Alert path: {decision['alert_path_note']}")
+    for a in decision.get("immediate_alerts") or []:
+        val = "" if a["value"] is None else f" = {a['value']}{' ' + a['unit'] if a['unit'] else ''}"
+        lines.append(f"  - Immediate alert, mission day {a['mission_day']}: {a['trigger']}{val}; "
+                     f"limit: {a['limit_rule']}; source: {a['source']} [{a['data_status']}]; "
+                     f"trusted because: {a['why_trusted']}.")
     lines.append("")
 
     trend_text = "  ->  ".join(f"day {t['day']}: {t['state']}" for t in trend)
@@ -72,8 +79,10 @@ def build_report(member, day, decision, trend, cabin):
         lines.append("")
     dose = decision.get("dosimetry")
     if dose:
-        lines.append("Radiation, this astronaut:")
+        lines.append("Radiation, this astronaut (personal dose, kept apart from the cabin reading):")
         lines.append(f"  - {dose['note']}")
+        if decision.get("cabin_radiation"):
+            lines.append(f"  - {decision['cabin_radiation']['note']}")
         lines.append("")
     sysd = decision.get("systems") or {}
     clin_lines = [r["text"] for k in ("bones", "immune") for r in (sysd.get(k) or {}).get("clinical", [])]

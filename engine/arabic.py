@@ -266,14 +266,34 @@ def build_report_ar(member, day, decision, trend, cabin):
                      f"إلى {_fmt(x['now'], d)} {unit} منذ بداية المهمة ({x['shift']:.1f} انحراف معياري).")
         L.append("")
 
+    path = decision.get("alert_path")
+    if path == "immediate_safety":
+        L.append("مسار التنبيه: تنبيه سلامة فوري (حد حرج موثّق أو عرض شديد). ACT الآن بدون انتظار يومين. "
+                 "اتبع الإجراء المعتمد؛ هذا ليس تشخيصًا طبيًا.")
+        for a in decision.get("immediate_alerts") or []:
+            L.append(f"  - يوم {a['mission_day']}: {a['trigger']} = {a['value']} {a['unit'] or ''}، المصدر: {a['source']}.")
+        L.append("")
+    elif path == "environment_watch":
+        L.append("مسار التنبيه: مراقبة بيئة المقصورة؛ قراءة في المقصورة خارج المعدل، والمشكلة في المسكن وليست في جسم الرائد.")
+        L.append("")
+    elif path == "slow_deterioration":
+        L.append("مسار التنبيه: تدهور تدريجي مقارنة بالمعدل الطبيعي للرائد؛ ACT يحتاج استمرار التغيّر يومين أو أكثر.")
+        L.append("")
     if decision.get("insufficient_data"):
         L.append("البيانات غير كافية لتأكيد هذه الحالة: إشارات كثيرة غير متاحة اليوم.")
         L.append("")
     dose = decision.get("dosimetry")
     if dose and dose.get("available"):
-        L.append("الإشعاع لهذا الرائد (مقياس جرعة شخصي محاكى مرتبط برقم الرائد):")
+        rec = dose.get("record") or {}
+        st = {"simulated": "محاكاة", "manually entered": "إدخال يدوي", "real device": "جهاز حقيقي"}.get(
+            rec.get("data_status"), rec.get("data_status"))
+        L.append(f"الجرعة الشخصية لهذا الرائد (مقياس الجرعة {rec.get('device_id')}، مرتبط بالرائد {rec.get('astronaut_id')}، "
+                 f"الوحدة ملّي سيفرت، الحالة: {st}). منفصلة عن قراءة إشعاع المقصورة:")
         today = "لا قراءة اليوم" if dose["today"] is None else f"{dose['today']:.2f} ملّي سيفرت اليوم"
         L.append(f"  - {today}، و{dose['mission_total']:.1f} ملّي سيفرت في المهمة ({dose['pct_career']:.0f}% من الحد المهني 600).")
+        cr = decision.get("cabin_radiation")
+        if cr and cr.get("value") is not None:
+            L.append(f"  - إشعاع المقصورة (بيئة، وليس جرعة شخصية): {cr['value']:.2f} ملّي سيفرت/يوم.")
         L.append("")
     sysd = decision.get("systems") or {}
     L.append("نتائج فحوصات دورية (لا تقيسها الأجهزة القابلة للارتداء):")

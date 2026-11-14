@@ -22,6 +22,7 @@ up to 20 minutes to reach Earth.
 | `docs/MODIFICATIONS_STATUS.md` | The development plan's items and what is done |
 | `docs/NASA_RESOURCES.md` | The challenge's NASA and CSA resources and how each one is used |
 | `docs/GAP_RESOLUTION.md` | All 35 issues from the gap analysis and what was done about each |
+| `docs/DOSE_AND_ALERT_PATHS.md` | Personal dose vs cabin radiation records, and the two alert paths (immediate safety vs slow deterioration) |
 | `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope; hardware status |
 | `docs/THRESHOLDS.md` | Every threshold, with its source or "project assumption" |
 | `docs/RULES.md` | The full rule catalogue, decision flow, missing data, action policy |
@@ -36,7 +37,7 @@ up to 20 minutes to reach Earth.
 
 ## Two versions of the code
 * **`main`**: the first complete version, kept unchanged on purpose as a stable reference (the version first shown to the team and mentors).
-* **`v2`** (this branch, **the submitted version**): everything in `main` plus the manual test page, the gap-analysis fixes, the NASA/CSA resources, the development plan items (immediate symptom alerts, clinical results, personal dosimetry, cabin temperature and humidity) and the real-device ingestion layer with the ESP32 code. Same demo story and same decisions as `main`; 40 tests.
+* **`v2`** (this branch, **the submitted version**): everything in `main` plus the manual test page, the gap-analysis fixes, the NASA/CSA resources, the development plan items (immediate symptom alerts, clinical results, personal dosimetry, cabin temperature and humidity) and the real-device ingestion layer with the ESP32 code. Same demo story and same decisions as `main`; 42 tests.
 
 ## Real devices (ingestion layer)
 Paired wristbands (`WB-A`, `WB-B`, `WB-C`) send readings to `POST /api/ingest` with their own device ID and timestamp. Without hardware, `python tools/fake_device.py --device WB-B --minutes 30 --fast --drop --dup --bad` acts like the ESP32; see the result at `/api/devices`. The ESP32 code is in `hardware/esp32_wristband/` (not yet tested on a board).
