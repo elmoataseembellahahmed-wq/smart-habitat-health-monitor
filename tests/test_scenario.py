@@ -179,12 +179,6 @@ def test_every_flag_has_a_reason():
                 assert f["reason"], (aid, day, f["signal"])
 
 
-if __name__ == "__main__":
-    for name, fn in list(globals().items()):
-        if name.startswith("test_"):
-            fn()
-            print("passed:", name)
-
 
 def test_camera_cannot_see_face_uses_wristband():
     """Too little face time: camera readings are not trusted, fatigue comes from the wristband."""
@@ -202,3 +196,63 @@ def test_camera_cannot_see_face_uses_wristband():
         assert next(s for s in a["signals"] if s["signal"] == "fatigue_score")["source"] == "wristband"
     normal_day = m.assess("A", 30)
     assert all(s.get("source") is None for s in normal_day["signals"])
+
+
+def test_swapped_wristbands_are_caught_without_a_health_alarm():
+    """Day 50: Amira and Chen wear each other's bands. Spotted from the readings alone."""
+    for aid, other in (("A", "C"), ("C", "A")):
+        d = m.assess(aid, 50)
+        assert d["band_check"]["with"] == other
+        assert d["state"] == "NORMAL"                     # no health alarm from a swapped band
+        assert d["actions"][0].startswith("Check that you are wearing your own wristband")
+        hrv = next(s for s in d["signals"] if s["signal"] == "hrv")
+        assert hrv["untrusted"] and hrv["level"] is None
+    assert "فحص السوار" in m.report("A", 50, "ar")
+    assert 50 not in m.learning_days("A", 57)              # swapped day is never learned from
+    others = [(a, d) for a in "ABC" for d in m.days if m.assess(a, d)["band_check"]]
+    assert others == [("A", 50), ("C", 50)], others        # no false swap alerts on any other day
+
+
+def test_slow_drift_is_caught_by_the_fixed_anchor():
+    """A decline too slow to show on any single day is caught against the day 1-14 normal."""
+    from engine import simulate
+    from engine.monitor import HealthMonitor
+    assert all(not m.assess(a, d)["drift"] for a in "ABC" for d in m.days)   # none in the demo
+    data = simulate.generate()
+    for d, r in data["crew"]["A"].items():
+        if d >= 15:
+            r["heart_rate"] += 0.08 * (d - 14)
+            r["hrv"] -= 0.12 * (d - 14)
+    slow = HealthMonitor(data=data)
+    first = next(d for d in slow.days if slow.assess("A", d)["drift"])
+    assert first <= 80, first
+    day = slow.assess("A", first)
+    assert day["state"] in ("WATCH", "ACT")
+    assert any(c["rule"] == "drift" for c in day["rule_codes"])
+    assert any("Flight surgeon" in a for a in day["actions"])
+    assert "تغيّر بطيء" in slow.report("A", first, "ar")
+
+
+def test_camera_pauses_when_two_faces_are_in_view():
+    """Two people in front of a camera: don't guess whose eyes they are, just pause."""
+    from camera.blink_tracker import BlinkTracker
+    from engine.live import assess
+    tr = BlinkTracker(calibration_s=5)
+    t = _feed(tr, 0.0, 10, blink_every=4)
+    face_before = tr.day_face_s
+    for i in range(30):                                     # two faces for 2 seconds
+        tr.update(t + i / 15, True, False, hour=10, faces=2)
+    r = tr.reading()
+    assert r["multiple_faces"] and not r["face_detected"]
+    assert tr.day_face_s == face_before                     # nothing was measured
+    assert r["today"]["skipped_multi_face_frames"] == 30
+    assert assess(r)["state"] == "PAUSED"
+    tr.update(t + 3, True, True, hour=10, faces=1)          # back to one face: measuring again
+    assert not tr.reading()["multiple_faces"]
+
+
+if __name__ == "__main__":
+    for name, fn in list(globals().items()):
+        if name.startswith("test_"):
+            fn()
+            print("passed:", name)

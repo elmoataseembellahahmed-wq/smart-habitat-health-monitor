@@ -88,6 +88,10 @@ areas only.
 - **WATCH** if the score is 3+, or a risk pattern is found: low oxygen (a strong drop), cabin air, possible fever, raised blood pressure, blood sugar out of range, combined stress, sleep debt, mental strain.
 - A single bad day can reach WATCH but never ACT. This avoids false alarms.
 
+### Data-integrity checks (`engine/integrity.py`)
+- **Swapped wristbands.** Each astronaut has their own normal, so if two astronauts swap bands, each band suddenly reads like the *other* person's normal. When both bands clearly fit each other's owner better than their own (sum of squared z-scores at most half, and at least 12 lower), the system raises **no health alarm**: it sets that day's wristband readings aside, never learns from that day, and asks both astronauts to check their band. No face recognition is needed. On the demo data it gives no false swap alert on any day; when we swap bands on purpose it finds 72-99% of swaps depending on how different the two astronauts' normals are, and misses rather than guesses when they are too similar.
+- **Slow drift (fixed anchor).** Re-learning every week could slowly absorb a decline that is too gradual to show on any single day. So the normal from days 1-14 is kept as a fixed anchor. If the current normal moves 1.5+ anchor standard deviations away in the unhealthy direction, the astronaut goes to WATCH and the flight surgeon is asked to review it. In a test where Amira's heart rate rises 0.08 bpm a day and her HRV falls 0.12 ms a day, it is caught on day 71, when no daily rule had raised a WATCH. It never fires on the demo data.
+
 ### AI anomaly model (Isolation Forest)
 - One forest of 200 trees per astronaut, written in plain Python (no scikit-learn needed).
 - Trained on 500 plausible normal days made by resampling that astronaut's real normal days (the first 14 days, then up to 30 recent NORMAL days, re-trained every week) with small noise.
@@ -99,6 +103,7 @@ areas only.
 - `camera/blink_tracker.py` measures **blink rate**, **PERCLOS** (share of time the eyes are closed) and **long closures** (0.5 s or more, possible microsleep) over the last minute, for instant alerts.
 - It also keeps a **daily summary**: minutes in view, eye closure today, microsleeps today and the most tired hour.
 - When nobody faces the camera, it simply measures nothing. Calibration counts only face time.
+- **Two or more faces in view:** the camera can't be sure whose eyes it is watching, so it doesn't guess. It pauses ("PAUSED") until only one face remains. The cameras run all day, so a few paused moments don't change the daily picture.
 - **If the cameras can't see a face enough** (less than 30 minutes in a day, e.g. during a spacewalk or work in a module without cameras), the camera readings are not trusted. Fatigue is then estimated from the wristband (sleep, heart rate variability, resting heart rate), compared with that astronaut's own normal, and the dashboard and report say so ("not seen", "estimated from the wristband"). NASA also uses wrist actigraphy to assess sleep and alertness.
 - Smoothing: a closure only counts once it lasts 2 frames, so a single missed detection is not a fake blink.
 - `engine/live.py` compares readings with the saved personal normal: WATCH if blinking or eye closure rises, ACT for 2+ long closures in a minute.
@@ -106,6 +111,7 @@ areas only.
 ## The demo story (mission days 1-125)
 - **Days 1-14**: the system learns each astronaut's personal normal. After that it keeps learning: every 7 days it updates the normal from the last 30 days the astronaut was NORMAL, so slow changes in space are followed, but bad days are never learned as "normal".
 - **Camera gaps**: on days 60-61 Amira is on a spacewalk (no camera, wristband says she is fine); on day 122 Ben works away from the cameras for most of the day, and his fatigue is still caught from the wristband (65 vs his normal 33).
+- **Day 50**: Amira and Chen put on each other's wristbands by mistake. Without the swap check, Amira's band would show a strong HRV drop (Chen's normal is 14 ms lower). With it, both get "check your wristband" and no health alarm.
 - **Days 15-118**: everyone is healthy. Over these 104 days the system gives one single-day WATCH (Amira, day 48) and no ACT.
 - **Amira**: healthy throughout. The system stays quiet.
 - **Ben**: slow stress build-up from day 119: sleep drops, HRV falls, blood pressure, breathing and blood sugar rise, mood falls. WATCH on day 120, ACT from day 121. The AI model flags him from day 120, and its alert grows stronger as he declines.
@@ -135,7 +141,8 @@ areas only.
 - **Not fully test-free:** cuffless blood pressure needs a regular cuff check, and the glucose patch is changed every 10-14 days.
 - **Most data is simulated.** Day-by-day in-flight astronaut data is not public. The webcam input is real.
 - Wrist temperature is an estimate of body temperature.
-- Thresholds are starting values, not clinically validated.
+- Thresholds are starting values, tuned on simulated data to avoid false alarms, not clinically validated. They are simple settings, so flight surgeons can calibrate them with real data.
+- The swap check can miss a swap between two astronauts whose normals are very similar; it never guesses in that case.
 - The camera needs a visible face and steady light. Spacecraft lighting is controlled, which helps. When it can't see a face long enough, fatigue falls back to a wristband estimate, which is less direct than eye measures.
 - This is decision support. The flight surgeon makes medical decisions.
 

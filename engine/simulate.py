@@ -16,6 +16,9 @@ realistic, repeatable scenario (fixed random seed) for the demo:
 * Camera time: the cameras usually see each face for 3-6 hours a day. On days 60-61 Amira
   is preparing for and doing a spacewalk (in a suit, away from cameras), and on day 122 Ben
   works in a module without cameras. Then fatigue is estimated from the wristband.
+* Wristband swap: on day 50 Amira and Chen put on each other's wristbands by mistake.
+  The system should spot it from the readings alone and ask them to check their bands,
+  without raising a health alarm.
 
 Replace this module with real sensor feeds to use the system for real.
 """
@@ -29,6 +32,10 @@ STORY_START = 100  # days 100-125 keep the original demo scenario (same random s
 
 # Days a camera could not see someone: (astronaut, day) -> minutes in view.
 CAMERA_GAPS = {("A", 60): 5, ("A", 61): 0, ("B", 122): 15}
+
+# Days two astronauts wore each other's wristbands: day -> (astronaut, astronaut).
+SWAPPED_BANDS = {50: ("A", "C")}
+WRIST_KEYS = ("heart_rate", "hrv", "spo2", "body_temp", "sleep_hours")
 
 CREW = [
     {"id": "A", "name": "Amira", "role": "Commander"},
@@ -164,6 +171,11 @@ def generate(seed=42):
             if (aid, day) in CAMERA_GAPS:
                 minutes = CAMERA_GAPS[(aid, day)]
             crew_data[aid][day]["camera_minutes"] = round(minutes)
+
+    # Swapped wristbands: each band reports the other person's body.
+    for day, (a, b) in SWAPPED_BANDS.items():
+        for k in WRIST_KEYS:
+            crew_data[a][day][k], crew_data[b][day][k] = crew_data[b][day][k], crew_data[a][day][k]
 
     for aid in crew_data:
         crew_data[aid] = dict(sorted(crew_data[aid].items()))

@@ -38,6 +38,17 @@ def build_report(member, day, decision, trend, cabin):
                 lines.append(f"  - {r}")
             lines.append("")
 
+    band = decision.get("band_check")
+    if band:
+        lines.append("Wristband check:")
+        lines.append(f"  - {band['message']}")
+        lines.append("")
+    if decision.get("drift"):
+        lines.append("Slow change since the start of the mission (for the flight surgeon):")
+        for x in decision["drift"]:
+            lines.append(f"  - {x['reason']}")
+        lines.append("")
+
     ai = decision.get("ai")
     if ai:
         lines.append(f"AI anomaly check (Isolation Forest): score {ai['score']:.2f} "

@@ -32,6 +32,12 @@ def assess(reading):
             f"Learning this person's normal blinking and eye closure "
             f"({reading.get('calibration_left', 0):.0f} s of face time left). Look at the screen normally."],
             "actions": []}
+    if reading.get("multiple_faces"):
+        return {"state": "PAUSED", "reasons": [
+            "Two or more faces are in front of this camera. The system cannot be sure whose eyes "
+            "it is watching, so it does not guess: it pauses until only one face is in view.",
+            "No face recognition is used. The cameras run all day, so a few paused moments "
+            "don't affect the daily fatigue picture."], "actions": []}
     if not reading.get("face_detected"):
         return {"state": "NOT IN VIEW", "reasons": [
             "Nobody is facing this camera right now. That's normal: the cameras measure "

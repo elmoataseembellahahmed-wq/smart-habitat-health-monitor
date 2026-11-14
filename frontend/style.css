@@ -61,7 +61,8 @@ button:hover { border-color: var(--accent); }
 .live-item + .live-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .live-stats.today { margin-top: 6px; }
 .live-stats.today strong { font-size: 16px; color: var(--muted); }
-.badge.NOTINVIEW { background: var(--muted); }
+.badge.NOTINVIEW, .badge.PAUSED { background: var(--muted); }
+.integrity { border-left: 3px solid var(--watch); padding: 6px 10px; margin: 6px 0; }
 .live ul { margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
 .live code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
 .badge.CALIBRATING, .badge.NO.FACE, .badge.NOFACE { background: var(--accent); }

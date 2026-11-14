@@ -206,6 +206,11 @@ function renderDetail(m) {
     (f) => el("li", {}, el("span", { class: `lvl ${f.level}` }, f.level), f.reason),
     "All signals are within this astronaut's normal range.");
   listOrEmpty("rules", m.rules_fired, (r) => el("li", {}, r), "No rule fired: state is NORMAL.");
+  // Data-integrity notes: a swapped wristband, or a slow drift since the start of the mission.
+  const extra = [];
+  if (m.band_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Wristband check: "), m.band_check.message));
+  (m.drift || []).forEach((x) => extra.push(el("li", { class: "integrity" }, el("strong", {}, "Slow drift: "), x.reason)));
+  if (extra.length) $("reasons").prepend(...extra);
   const ai = m.ai;
   const pct = Math.min(100, Math.max(0, (ai.score - 0.3) / 0.5 * 100));
   const thr = Math.min(100, Math.max(0, (ai.threshold - 0.3) / 0.5 * 100));

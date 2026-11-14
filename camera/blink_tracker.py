@@ -40,6 +40,8 @@ class BlinkTracker:
         self.last_t = None
         self.last_face_t = None
         self.face_detected = False
+        self.multiple_faces = False     # two or more faces in view: frame is not measured
+        self.day_multi_face_frames = 0
         self.baseline_blink_rate = None
         self.baseline_perclos = None
         self.calibration_face_s = 0.0
@@ -54,10 +56,19 @@ class BlinkTracker:
             self.baseline_perclos = baseline["perclos"]
 
     # ---------- feeding frames ----------
-    def update(self, t, face_detected, eyes_open, hour=None):
-        """Feed one frame observation at time t (seconds). `hour` = clock hour of the frame."""
+    def update(self, t, face_detected, eyes_open, hour=None, faces=None):
+        """Feed one frame observation at time t (seconds). `hour` = clock hour of the frame.
+
+        `faces` = number of faces the camera found. With two or more people in view the
+        system cannot be sure whose eyes it is watching, so it does not guess: the frame
+        is skipped, exactly as if nobody were in view, until only one face remains.
+        """
         if self.start is None:
             self.start = t
+        self.multiple_faces = faces is not None and faces > 1
+        if self.multiple_faces:
+            self.day_multi_face_frames += 1
+            face_detected = False
         dt = 0.0 if self.last_face_t is None else min(t - self.last_face_t, 1.0)
         self.last_t = t
         self.face_detected = face_detected
@@ -169,6 +180,7 @@ class BlinkTracker:
             "perclos": round(self.day_closed_s / self.day_face_s, 3) if self.day_face_s else 0.0,
             "blinks": self.day_blinks,
             "microsleeps": self.day_microsleeps,
+            "skipped_multi_face_frames": self.day_multi_face_frames,
             "peak_hour": peak,
         }
 
@@ -182,6 +194,7 @@ class BlinkTracker:
                       + max(0.0, m["blink_rate"] - (self.baseline_blink_rate or m["blink_rate"])) * 1.5)
         return {
             "face_detected": self.face_detected,
+            "multiple_faces": self.multiple_faces,
             "calibrating": calibrating,
             "calibration_left": round(left, 1),
             "blink_rate": round(m["blink_rate"], 1),

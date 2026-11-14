@@ -119,9 +119,13 @@ def main():
             now = time.time()
             gray = cv2.equalizeHist(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
             faces = face_det.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5, minSize=(120, 120))
-            face_found, eyes_open = len(faces) > 0, False
+            many = len(faces) > 1   # two or more people: don't guess whose eyes these are
+            face_found, eyes_open = len(faces) == 1, False
+            if many and not args.no_window:
+                for fx, fy, fw, fh in faces:
+                    cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), (80, 80, 240), 2)
             if face_found:
-                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])  # largest face = nearest person
+                x, y, w, h = faces[0]
                 upper = gray[y + int(h * 0.15): y + int(h * 0.55), x: x + w]
                 eyes = eye_det.detectMultiScale(upper, scaleFactor=1.1, minNeighbors=6,
                                                 minSize=(int(w * 0.12), int(w * 0.12)))
@@ -131,7 +135,8 @@ def main():
                     for ex, ey, ew, eh in eyes:
                         oy = y + int(h * 0.15)
                         cv2.rectangle(frame, (x + ex, oy + ey), (x + ex + ew, oy + ey + eh), (80, 200, 120), 2)
-            tracker.update(now, face_found, eyes_open, hour=time.localtime(now).tm_hour)
+            tracker.update(now, face_found, eyes_open, hour=time.localtime(now).tm_hour,
+                           faces=len(faces))
 
             if not saved_now and tracker.baseline():
                 tracker.save_baseline(baseline_file)
@@ -152,6 +157,8 @@ def main():
                 t = r["today"]
                 if r["calibrating"]:
                     text = f"Band {band} - learning normal... {r['calibration_left']:.0f}s"
+                elif many:
+                    text = f"Band {band} - {len(faces)} faces in view (paused until one remains)"
                 elif not face_found:
                     text = f"Band {band} - no face in view (not measuring)"
                 else:

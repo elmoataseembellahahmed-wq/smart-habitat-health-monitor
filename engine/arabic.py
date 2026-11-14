@@ -94,6 +94,12 @@ ACTION_AR = {
     "Re-check temperature later today.": "أعد قياس الحرارة لاحقًا اليوم.",
     "Rest for 10 minutes and re-check breathing rate; check cabin CO2.":
         "استرح 10 دقائق ثم أعد قياس معدل التنفس، وافحص ثاني أكسيد الكربون في المقصورة.",
+    "Check that you are wearing your own wristband (the ID is on the band), then swap back if needed.":
+        "تأكّد أنك تلبس سوارك أنت (الرقم التعريفي مكتوب على السوار)، وبدّله إن لزم.",
+    "Flight surgeon: review the slow change in this astronaut's normal since the start of the mission "
+    "(it is too gradual to show on any single day).":
+        "طبيب الرحلة: راجع التغيّر البطيء في المعدل الطبيعي لهذا الرائد منذ بداية المهمة "
+        "(تغيّر تدريجي جدًا لا يظهر في أي يوم منفرد).",
 }
 
 AI_NOTE_AR = {
@@ -147,6 +153,9 @@ def rule_ar(c):
                 "ويصبح تدخّلًا إذا استمر غدًا.")
     if r == "watch_score":
         return f"مجموع الانحراف {c['score']} وصل إلى مستوى المراقبة ({c['limit']})."
+    if r == "drift":
+        return ("تدهور بطيء: المعدل الطبيعي لهذا الرائد ابتعد كثيرًا عن بداية المهمة في: "
+                + "، ".join(SIGNAL_AR[s][0] for s in c["signals"]) + ".")
     if r == "pattern":
         return "تم رصد نمط خطر معروف: " + "، ".join(PATTERN_AR[p][0] for p in c["patterns"]) + "."
     return r
@@ -190,6 +199,22 @@ def build_report_ar(member, day, decision, trend, cabin):
             for c in decision["rule_codes"]:
                 L.append(f"  - {rule_ar(c)}")
             L.append("")
+
+    band = decision.get("band_check")
+    if band:
+        other = NAME_AR.get(band["with_name"], band["with_name"])
+        L.append("فحص السوار:")
+        L.append(f"  - قراءات السوار اليوم تطابق المعدل الطبيعي لـ{other}، وسوار {other} يطابق هذا الرائد. "
+                 "الأرجح أن السوارين تبادلا. لا يُطلق إنذار صحي بسببهما: تم تجاهل قراءات السوار لهذا اليوم.")
+        L.append("")
+    if decision.get("drift"):
+        L.append("تغيّر بطيء منذ بداية المهمة (لطبيب الرحلة):")
+        for x in decision["drift"]:
+            name, unit = SIGNAL_AR[x["signal"]]
+            d = SIGNALS[x["signal"]]["decimals"]
+            L.append(f"  - {name}: المعدل الطبيعي لهذا الرائد تحرّك ببطء من {_fmt(x['anchor'], d)} "
+                     f"إلى {_fmt(x['now'], d)} {unit} منذ بداية المهمة ({x['shift']:.1f} انحراف معياري).")
+        L.append("")
 
     ai = decision.get("ai")
     if ai:
