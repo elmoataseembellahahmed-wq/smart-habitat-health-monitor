@@ -13,6 +13,9 @@ from .report import build_report
 from .arabic import build_report_ar
 from .reminders import reminders, normal_streak
 from .integrity import band_swap, drift, WRIST_SIGNALS
+from . import quality
+from . import version
+from . import access
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
                       CAMERA_SIGNALS, MIN_CAMERA_MINUTES, wrist_fatigue)
 
@@ -32,6 +35,13 @@ class HealthMonitor:
         self.crew = crew or simulate.CREW
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
+        # Sensor quality first: faulty readings are kept aside and never analysed.
+        self.faults = quality.scan(self.data["crew"])
+        self.raw_values = {}
+        for (aid, day), issues in self.faults.items():
+            for key in issues:
+                self.raw_values[(aid, day, key)] = self.data["crew"][aid][day].get(key)
+                self.data["crew"][aid][day][key] = None
         for crew_days in self.data["crew"].values():
             for reading in crew_days.values():
                 reading["wrist_fatigue"] = wrist_fatigue(reading)
@@ -105,9 +115,14 @@ class HealthMonitor:
         days = self.data["crew"][aid]
         seen = self.camera_seen(aid, day)
         swap = self.band_check(aid, day)
+        issues = self.faults.get((aid, day), {})
         out = []
         for k in CORE_SIGNALS:
-            if swap and k in WRIST_SIGNALS:
+            if k in issues:
+                entry = self._not_trusted(k, base, issues[k]["message"])
+                entry.update(untrusted=False, fault=issues[k]["code"])
+                out.append(entry)
+            elif swap and k in WRIST_SIGNALS:
                 out.append(self._not_trusted(k, base, f"This band seems to be on another astronaut's wrist "
                                              f"today, so its {SIGNALS[k]['name'].lower()} reading was not used."))
             elif k in CAMERA_SIGNALS and not seen:
@@ -132,6 +147,9 @@ class HealthMonitor:
         minutes = days[day].get("camera_minutes", 0)
         note = (f"The cameras saw this astronaut for only {minutes} min today "
                 f"(at least {MIN_CAMERA_MINUTES} min needed)")
+        if key == "fatigue_score" and days[day].get("wrist_fatigue") is None:
+            return self._not_trusted(key, base, note + ", and the wristband readings needed for an "
+                                     "estimate are unavailable, so fatigue was not measured.")
         if key == "fatigue_score":
             a = analyse_signal("wrist_fatigue", day, days, base)
             a.update(signal="fatigue_score", source="wristband", camera_minutes=minutes,
@@ -175,8 +193,16 @@ class HealthMonitor:
         decision["signals"] = signals
         decision["cabin"] = cabin
         self._integrity(aid, day, decision)
+        issues = self.faults.get((aid, day), {})
+        decision["sensor_faults"] = quality.sensor_faults(issues)
+        decision["self_report_skipped"] = any(i["code"] == "skipped" for i in issues.values())
+        decision["coverage"] = quality.coverage(signals)
+        learned = self.learning_days(aid, day)
+        decision["versions"] = {**version.stamp(),
+                                "personal_normal": f"{aid}-day{self.update_day(day)}",
+                                "learned_from_days": [min(learned), max(learned), len(learned)]}
         decision["ai"] = self.ai(aid, day, decision)
-        decision["systems"] = body_systems(signals, cabin)
+        decision["systems"] = body_systems(signals, cabin, self.exercise(aid, day))
         return decision
 
     def _integrity(self, aid, day, decision):
@@ -221,6 +247,9 @@ class HealthMonitor:
                 # Swapped band: its readings belong to someone else, so they are neutralised too.
                 for k in WRIST_SIGNALS:
                     reading[k] = learned["baseline"][k]["mean"]
+            for k in CORE_SIGNALS:
+                if reading.get(k) is None:     # unavailable reading: neutral value for the model
+                    reading[k] = learned["baseline"][k]["mean"]
             self._ai_cache[key] = learned["model"].assess(reading)
         res = dict(self._ai_cache[key])
         ai_flag = res["level"] != "normal"
@@ -250,17 +279,39 @@ class HealthMonitor:
         states = {d: self.assess(aid, d)["state"] for d in self.days if d <= day}
         return {"reminders": reminders(aid, day), "normal_streak": normal_streak(states, day)}
 
-    def status(self, day):
-        """Whole-crew status for the dashboard."""
+    def status(self, day, role="surgeon"):
+        """Whole-crew status for the dashboard, as `role` is allowed to see it."""
         crew = []
         for m in self.crew:
             d = self.assess(m["id"], day)
-            crew.append({**m, **d, "trend": self.trend(m["id"], day), "routine": self.routine(m["id"], day)})
-        return {"day": day, "crew": crew, "cabin": analyse_cabin(day, self.data["cabin"])}
+            crew.append({**m, **d, "trend": self.trend(m["id"], day), "routine": self.routine(m["id"], day),
+                         "exercise": self.exercise(m["id"], day)})
+        cabin = analyse_cabin(day, self.data["cabin"])
+        wide = crew_wide(crew, cabin)
+        return {"day": day, "role": role, "crew": [access.view(c, role) for c in crew],
+                "cabin": cabin, "crew_wide": wide}
 
-    def report(self, aid, day, lang="en"):
+    def exercise(self, aid, day):
+        """Exercise adherence over the last 7 days. This protects bones and muscles, but it is
+        NOT a measurement of bone density or muscle mass (no daily sensor can measure those)."""
+        from .simulate import EXERCISE_PLAN
+        week = [self.data["crew"][aid][d].get("exercise_minutes") for d in range(day - 6, day + 1)
+                if d in self.data["crew"][aid]]
+        met = sum(1 for v in week if v is not None and v >= 60)
+        return {"today": self.data["crew"][aid][day].get("exercise_minutes"), "plan": EXERCISE_PLAN,
+                "days_met_last_7": met, "days_counted": len(week), "low": met < 4,
+                "note": (f"Exercise done on {met} of the last {len(week)} days (60+ min). "
+                         "This is adherence only, not a bone or muscle measurement.")}
+
+    def report(self, aid, day, lang="en", role="surgeon"):
         m = self.member(aid)
-        d = {**self.assess(aid, day), "routine": self.routine(aid, day)}
+        if role not in ("surgeon", "commander", aid):
+            return ("الحالة فقط تُشارك مع زملاء الطاقم. التفاصيل خاصة."
+                    if lang == "ar" else access.CREWMATE_NOTE) + f"  ({m['name']}: {self.assess(aid, day)['state']})"
+        d = {**self.assess(aid, day), "routine": self.routine(aid, day),
+             "crew_wide": crew_wide([{**x, **self.assess(x["id"], day)} for x in self.crew],
+                                    analyse_cabin(day, self.data["cabin"]))}
+        d = access.view({**m, **d}, role)
         build = build_report_ar if lang == "ar" else build_report
         return build(m, day, d, self.trend(aid, day), d["cabin"])
 
@@ -290,11 +341,54 @@ class HealthMonitor:
         }
 
 
+# Signals that cabin CO2 can change in everyone (faster breathing, fatigue, headache-related).
+CO2_SENSITIVE = {"breathing_rate", "heart_rate", "fatigue_score", "blink_rate", "spo2", "sleep_hours"}
+
+
+def crew_wide(crew, cabin):
+    """Separate a cabin problem that affects everyone from individual health problems.
+
+    A signal off in 2+ crew members on the same day is a shared change. If the cabin is
+    also off and the signal is one cabin air can change, it is likely environmental.
+    Without a cabin cause it is reported as a shared change to check (schedule, workload,
+    an infection passing between crew), not blamed on the air. On a cabin-alert day, an
+    astronaut whose changes go beyond what cabin air explains is flagged as individual too.
+    """
+    cabin_off = any(c["level"] for c in cabin if c["signal"] == "co2")
+    counts = {}
+    for m in crew:
+        for f in m["flags"]:
+            counts.setdefault(f["signal"], []).append(m["id"])
+    shared = {k: v for k, v in counts.items() if len(v) >= 2}
+    env = sorted(k for k in shared if cabin_off and k in CO2_SENSITIVE)
+    other = sorted(k for k in shared if k not in env)
+    beyond = []
+    if cabin_off:
+        for m in crew:
+            extra = sorted({f["signal"] for f in m["flags"]} - CO2_SENSITIVE)
+            if extra:
+                beyond.append({"id": m["id"], "name": m["name"], "signals": extra})
+    notes = []
+    if env:
+        notes.append(f"Shared by {len(set(sum((shared[k] for k in env), [])))} crew members with cabin CO2 "
+                     f"raised: {', '.join(SIGNALS[k]['name'].lower() for k in env)}. Likely environmental: "
+                     "fix the air first.")
+    if other:
+        notes.append("Shared change with no cabin cause found: "
+                     + ", ".join(SIGNALS[k]["name"].lower() for k in other)
+                     + ". Treated as individual issues; check shared causes (schedule, workload, infection).")
+    for b in beyond:
+        notes.append(f"{b['name']}: changes beyond what cabin air explains "
+                     f"({', '.join(SIGNALS[k]['name'].lower() for k in b['signals'])}), so this is also an "
+                     "individual health pattern, not only the air.")
+    return {"environmental": env, "shared_no_cabin_cause": other, "beyond_cabin": beyond, "notes": notes}
+
+
 LEVEL_RANK = {None: 0, "mild": 1, "strong": 2, "critical": 3}
 SYSTEM_STATUS = {0: "normal", 1: "watch", 2: "act", 3: "act"}
 
 
-def body_systems(signals, cabin):
+def body_systems(signals, cabin, exercise=None):
     """Status of each body system for the body figure: the worst of its signals.
 
     One mild flag gives 'watch'; a strong or safety-limit flag gives 'act'. Lungs also
@@ -320,7 +414,14 @@ def body_systems(signals, cabin):
         if key == "lungs" and status != "normal" and not actions:
             actions.append("Check cabin CO2 and the air scrubber.")
         if key == "bones":
-            actions.append("Keep the daily resistance exercise session: it is the main protection for bones and muscles.")
+            if exercise and exercise["low"]:
+                status = "watch"
+                actions.append(exercise["note"] + " Get back to the daily exercise plan: it is the main "
+                               "protection for bones and muscles.")
+            else:
+                if exercise:
+                    actions.append(exercise["note"])
+                actions.append("Keep the daily resistance exercise session: it is the main protection for bones and muscles.")
         if not actions:
             actions.append("Nothing to do. Keep the normal routine.")
         out[key] = {

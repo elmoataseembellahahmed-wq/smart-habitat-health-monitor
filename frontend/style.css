@@ -62,6 +62,16 @@ button:hover { border-color: var(--accent); }
 .live-stats.today { margin-top: 6px; }
 .live-stats.today strong { font-size: 16px; color: var(--muted); }
 .badge.NOTINVIEW, .badge.PAUSED { background: var(--muted); }
+.viewas { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.viewas select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.crewwide { padding: 8px 28px 0; font-size: 14px; }
+.crewwide div { background: var(--panel); border: 1px solid var(--watch); border-radius: 10px; padding: 8px 12px; margin-top: 6px; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px; }
+.summary > div { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.summary b { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.conf-full { color: var(--normal); } .conf-limited { color: var(--watch); } .conf-low { color: var(--act); }
+.atype { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--panel-2); margin-right: 6px; text-transform: uppercase; }
+.restricted { padding: 18px; color: var(--muted); }
 .integrity { border-left: 3px solid var(--watch); padding: 6px 10px; margin: 6px 0; }
 .live ul { margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
 .live code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }

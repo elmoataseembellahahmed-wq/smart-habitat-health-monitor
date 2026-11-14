@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from engine import HealthMonitor, live
+from engine import HealthMonitor, live, access
 
 app = FastAPI(
     title="Astronaut Health Monitor",
@@ -34,6 +34,15 @@ def _day(day):
     return day
 
 
+def _role(role):
+    if not access.valid_role(role, [m["id"] for m in monitor.crew]):
+        raise HTTPException(400, f"Unknown role: {role}")
+    return role
+
+
+ROLE_Q = Query("surgeon", description="surgeon, commander, or an astronaut id (A, B, C)")
+
+
 def _member(aid):
     try:
         return monitor.member(aid)
@@ -48,33 +57,45 @@ def mission():
 
 
 @app.get("/api/status")
-def status(day: int | None = Query(None, description="Mission day (default: latest)")):
-    """State, flags, reasons and actions for the whole crew on one day."""
-    return monitor.status(_day(day))
+def status(day: int | None = Query(None, description="Mission day (default: latest)"), role: str = ROLE_Q):
+    """State, flags, reasons and actions for the whole crew on one day, as `role` may see them."""
+    access.log(_role(role), "all", f"status day {day}")
+    return monitor.status(_day(day), role)
+
+
+@app.get("/api/audit")
+def audit(role: str = ROLE_Q):
+    """Who looked at what (flight surgeon only)."""
+    if _role(role) != "surgeon":
+        raise HTTPException(403, "Flight surgeon only")
+    return access.audit()
 
 
 @app.get("/api/astronaut/{aid}")
-def astronaut(aid: str, day: int | None = None):
-    """Full assessment of one astronaut on one day."""
+def astronaut(aid: str, day: int | None = None, role: str = ROLE_Q):
+    """Full assessment of one astronaut on one day (as `role` may see it)."""
     m = _member(aid)
     d = _day(day)
-    return {**m, "day": d, **monitor.assess(aid, d), "trend": monitor.trend(aid, d)}
+    access.log(_role(role), aid, f"astronaut day {d}")
+    return access.view({**m, "day": d, **monitor.assess(aid, d), "trend": monitor.trend(aid, d)}, role)
 
 
 @app.get("/api/report/{aid}", response_class=PlainTextResponse)
 def report(aid: str, day: int | None = None,
-           lang: str = Query("en", pattern="^(en|ar)$", description="en = English, ar = Arabic")):
+           lang: str = Query("en", pattern="^(en|ar)$", description="en = English, ar = Arabic"),
+           role: str = ROLE_Q):
     """The daily status report as plain text, in English or Arabic."""
     _member(aid)
-    return monitor.report(aid, _day(day), lang)
+    access.log(_role(role), aid, f"report day {day} ({lang})")
+    return monitor.report(aid, _day(day), lang, role)
 
 
 @app.get("/api/series/{aid}/{signal}")
-def series(aid: str, signal: str):
+def series(aid: str, signal: str, role: str = ROLE_Q):
     """Every value of one signal across the mission, with the personal baseline."""
     _member(aid)
     try:
-        return monitor.series(aid, signal)
+        return access.series_view(monitor.series(aid, signal), aid, _role(role))
     except KeyError as e:
         raise HTTPException(404, str(e))
 

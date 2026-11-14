@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from engine import HealthMonitor, live
+from engine import HealthMonitor, live, access
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
@@ -38,6 +38,9 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(url.query)
         try:
             day = int(q["day"][0]) if "day" in q else monitor.days[-1]
+            role = q.get("role", ["surgeon"])[0]
+            if not access.valid_role(role, [m["id"] for m in monitor.crew]):
+                raise ValueError(f"Unknown role: {role}")
             if parts == []:
                 return self._send(200, (FRONTEND / "index.html").read_bytes(), "text/html")
             if parts[0] == "static" and len(parts) == 2:
@@ -50,18 +53,25 @@ class Handler(BaseHTTPRequestHandler):
                 if parts[1:] == ["live"]:
                     return self._json(live.latest())
                 if parts[1:] == ["status"]:
-                    return self._json(monitor.status(day))
+                    access.log(role, "all", f"status day {day}")
+                    return self._json(monitor.status(day, role))
+                if parts[1:] == ["audit"]:
+                    if role != "surgeon":
+                        return self._send(403, json.dumps({"detail": "Flight surgeon only"}))
+                    return self._json(access.audit())
                 if parts[1] == "astronaut" and len(parts) == 3:
                     m = monitor.member(parts[2])
-                    return self._json({**m, "day": day, **monitor.assess(m["id"], day),
-                                       "trend": monitor.trend(m["id"], day)})
+                    access.log(role, m["id"], f"astronaut day {day}")
+                    return self._json(access.view({**m, "day": day, **monitor.assess(m["id"], day),
+                                                   "trend": monitor.trend(m["id"], day)}, role))
                 if parts[1] == "report" and len(parts) == 3:
                     monitor.member(parts[2])
                     lang = "ar" if q.get("lang", ["en"])[0] == "ar" else "en"
-                    return self._send(200, monitor.report(parts[2], day, lang), "text/plain")
+                    access.log(role, parts[2], f"report day {day} ({lang})")
+                    return self._send(200, monitor.report(parts[2], day, lang, role), "text/plain")
                 if parts[1] == "series" and len(parts) == 4:
                     monitor.member(parts[2])
-                    return self._json(monitor.series(parts[2], parts[3]))
+                    return self._json(access.series_view(monitor.series(parts[2], parts[3]), parts[2], role))
             self._send(404, json.dumps({"detail": "Not found"}))
         except (KeyError, ValueError) as e:
             self._send(404, json.dumps({"detail": str(e)}))

@@ -5,6 +5,7 @@ const state = {
   mission: null,
   day: null,
   selected: "B",
+  role: "surgeon",   // whose view: surgeon, commander, or an astronaut id
   lang: "en",
   system: null,
   autoSystem: true,
@@ -35,6 +36,14 @@ async function api(path, asText = false) {
   return asText ? res.text() : res.json();
 }
 
+function missingWord(s) {
+  if (s.private) return "private";
+  if (s.fault === "skipped") return "skipped (optional)";
+  if (s.fault) return "unavailable (sensor check)";
+  if (s.untrusted) return "set aside (band check)";
+  return "not seen";
+}
+
 function fmt(value, decimals) {
   if (value === null || value === undefined) return "not seen";
   return decimals ? Number(value).toFixed(decimals) : String(Math.round(value));
@@ -48,10 +57,15 @@ function renderCabin(cabin) {
     ...cabin.map((c) => {
       const meta = state.mission.cabin_signals[c.signal];
       const label = c.level ? ` (${c.level.toUpperCase()})` : " (ok)";
-      return el("span", { class: `chip ${c.level || ""}` },
-        `${c.name}: ${fmt(c.value, meta.decimals)} ${c.unit}${label}`);
+      return el("span", { class: `chip ${c.level || ""}`, title: c.note || "" },
+        `${c.name}: ${fmt(c.value, meta.decimals)} ${c.unit}${label}`,
+        c.note ? el("span", { class: "role" }, ` · ${c.note}`) : null);
     })
   );
+}
+
+function renderCrewWide(cw) {
+  $("crewwide").replaceChildren(...(cw?.notes || []).map((n) => el("div", {}, el("strong", {}, "Crew-wide: "), n)));
 }
 
 function renderCrew(crew) {
@@ -59,6 +73,14 @@ function renderCrew(crew) {
   box.replaceChildren(
     ...crew.map((m) => {
       // Headline: the most important personal problem; cabin air only if it's the only one.
+      if (m.restricted) {
+        return el("button", { class: `card ${m.state} ${m.id === state.selected ? "selected" : ""}`, type: "button",
+            onclick: () => { state.selected = m.id; render(); } },
+          el("div", { class: "row" },
+            el("div", {}, el("div", { class: "name" }, m.name), el("div", { class: "role" }, m.role)),
+            el("span", { class: `badge ${m.state}` }, m.state)),
+          el("div", { class: "why" }, m.note));
+      }
       const personal = m.patterns.find((p) => p.id === "stress_fatigue") || m.patterns.find((p) => p.id !== "cabin_air");
       const top = (personal || m.patterns[0])?.title || m.flags[0]?.reason || "All signals within personal normal.";
       const trend = el("div", { class: "trend", title: "Last 5 days" },
@@ -76,6 +98,9 @@ function renderCrew(crew) {
         el("div", { class: "row" },
           el("span", { class: "role" }, `AI anomaly ${m.ai.score.toFixed(2)}`),
           el("span", { class: `ai-tag ${m.ai.level}` }, m.ai.level === "normal" ? "AI: normal" : `AI: ${m.ai.level}`)),
+        m.coverage && m.coverage.confidence !== "full"
+          ? el("div", { class: `role conf-${m.coverage.confidence}` }, `Data: ${m.coverage.confidence} confidence`) : null,
+        m.sensor_faults?.length ? el("div", { class: "role conf-limited" }, `Sensor check: ${m.sensor_faults.map((f) => f.device_name).join(", ")}`) : null,
         el("div", { class: "why" }, top));
     })
   );
@@ -89,9 +114,11 @@ function listOrEmpty(id, items, make, emptyText) {
 function sparkline(series, upToDay, level) {
   const W = 220, H = 48, pad = 4;
   const pts = series.points;
+  const vals = pts.map((p) => p.value).filter((v) => v !== null && v !== undefined);
+  if (!vals.length || series.baseline_mean == null) return null;
   const band = 2.5 * series.baseline_sd;
-  const lo = Math.min(...pts.map((p) => p.value), series.baseline_mean - band);
-  const hi = Math.max(...pts.map((p) => p.value), series.baseline_mean + band);
+  const lo = Math.min(...vals, series.baseline_mean - band);
+  const hi = Math.max(...vals, series.baseline_mean + band);
   const x = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
   const y = (v) => H - pad - ((v - lo) / (hi - lo || 1)) * (H - 2 * pad);
   const ns = "http://www.w3.org/2000/svg";
@@ -108,14 +135,15 @@ function sparkline(series, upToDay, level) {
 
   const shown = pts.filter((p) => p.day <= upToDay);
   const path = document.createElementNS(ns, "polyline");
-  path.setAttribute("points", shown.map((p, i) => `${x(i)},${y(p.value)}`).join(" "));
+  // Unavailable readings (sensor faults) are left out of the line, never drawn as values.
+  path.setAttribute("points", shown.map((p, i) => (p.value == null ? null : `${x(i)},${y(p.value)}`)).filter(Boolean).join(" "));
   path.setAttribute("fill", "none");
   path.setAttribute("stroke", "#6aa9ff");
   path.setAttribute("stroke-width", "1.5");
   path.setAttribute("vector-effect", "non-scaling-stroke");
   svg.append(path);
 
-  if (shown.length) {
+  if (shown.length && shown[shown.length - 1].value != null) {
     const last = shown[shown.length - 1];
     const dot = document.createElementNS(ns, "circle");
     dot.setAttribute("cx", x(shown.length - 1));
@@ -133,6 +161,11 @@ const STATUS_WORD = { normal: "Normal", watch: "Watch", act: "Act", info: "No da
 const STATUS_RANK = { act: 3, watch: 2, normal: 1, info: 0 };
 
 function renderBody(m) {
+  if (m.restricted) {
+    document.querySelectorAll("#bodySvg .part").forEach((g) => g.setAttribute("class", "part info"));
+    $("bodyInfo").replaceChildren(el("p", { class: "restricted" }, m.note));
+    return;
+  }
   const systems = m.systems;
   // Keep the user's choice; otherwise open the most urgent body system.
   if (!state.system || !systems[state.system] || state.autoSystem) {
@@ -152,20 +185,21 @@ function renderBody(m) {
     return el("tr", { class: s.level || "" },
       el("td", {}, el("div", {}, s.source === "wristband" ? "Fatigue estimate (wristband)" : s.name),
         el("div", { class: "about" }, s.note || sm.about)),
-      el("td", { class: "v" }, s.missing ? "not seen" : `${fmt(s.value, sm.decimals)} ${s.unit}`),
-      el("td", { class: "about" }, `normal ${fmt(s.baseline, sm.decimals)}`));
+      el("td", { class: "v" }, s.missing ? missingWord(s) : `${fmt(s.value, sm.decimals)} ${s.unit}`),
+      el("td", { class: "about" }, s.baseline == null ? "" : `normal ${fmt(s.baseline, sm.decimals)}`));
   });
-  $("bodyInfo").replaceChildren(
+  $("bodyInfo").replaceChildren(...[
     el("div", { class: "sys-head" }, el("h4", {}, meta.name),
       el("span", { class: `sys-status ${sys.status}` }, STATUS_WORD[sys.status])),
     el("p", {}, el("b", {}, "What it does: "), meta.does),
     el("p", {}, el("b", {}, "In space: "), meta.space),
+    meta.measured ? el("p", {}, el("b", {}, "What we measure: "), meta.measured) : null,
     el("div", { class: "lbl" }, "Spaceflight hazards"),
     el("div", { class: "chips" }, ...meta.hazards.map((h) => el("span", { class: "chip-h" }, h))),
     rows.length ? el("div", { class: "lbl" }, "Readings today") : null,
     rows.length ? el("table", { class: "readings" }, ...rows) : null,
     el("div", { class: "lbl" }, "What to do"),
-    el("ul", {}, ...sys.actions.map((a) => el("li", {}, a))));
+    el("ul", {}, ...sys.actions.map((a) => el("li", {}, a)))].filter(Boolean));
 }
 
 function bindBody() {
@@ -193,11 +227,44 @@ function renderSensors(live) {
   }));
 }
 
+const ATYPE = { escalate: "escalate", equipment: "equipment", confirm: "confirm first", "self-care": "self-care", none: "" };
+function actionType(a) {
+  const t = a.toLowerCase();
+  if (/flight surgeon|psychologist|commander|notify/.test(t)) return "escalate";
+  if (/re-check|re-measure|confirm|check-in|check in/.test(t)) return "confirm";
+  if (/scrubber|sensor|wristband|patch|strap|camera/.test(t)) return "equipment";
+  if (/no action|nothing to do/.test(t)) return "none";
+  return "self-care";
+}
+
+// The astronaut's first view: what changed, how sure the system is, what to do, when to escalate.
+function renderSummary(m) {
+  if (m.restricted) { $("summary").replaceChildren(el("div", {}, el("b", {}, "Shared with crewmates"), m.note)); return; }
+  const changed = m.band_check ? "Wristband check: the band seems swapped. No health alarm."
+    : ((m.patterns.find((p) => p.id === "stress_fatigue") || m.patterns[0])?.title || (m.flags[0] ? `${m.flags.length} signal(s) outside your normal` : "Nothing: all within your normal."));
+  const cov = m.coverage;
+  const next = m.actions[0] || "No action needed.";
+  const esc = m.state === "ACT" ? "Now: send the report to the flight surgeon at the next contact window."
+    : m.state === "WATCH" ? "If this continues tomorrow, it becomes ACT and goes to the flight surgeon."
+    : "Nothing to escalate.";
+  $("summary").replaceChildren(
+    el("div", {}, el("b", {}, "What changed"), changed),
+    el("div", {}, el("b", {}, "How sure"), el("span", { class: `conf-${cov.confidence}` }, `${cov.confidence} confidence`), ` · ${cov.note}`),
+    el("div", {}, el("b", {}, "Do next"), next),
+    el("div", {}, el("b", {}, "When to escalate"), esc));
+}
+
 function renderDetail(m) {
   $("detailTitle").textContent = `${m.name} (${m.role}), day ${state.day}`;
   const badge = $("detailBadge");
   badge.className = `badge ${m.state}`;
   badge.textContent = m.state;
+  renderSummary(m);
+  if (m.restricted) {
+    ["patterns", "reasons", "rules", "actions", "routine"].forEach((id) => $(id).replaceChildren());
+    $("ai").replaceChildren(); $("signals").replaceChildren(el("p", { class: "restricted" }, m.note));
+    return;
+  }
 
   listOrEmpty("patterns", m.patterns,
     (p) => el("li", {}, el("strong", {}, p.title), " - ", p.explain),
@@ -208,6 +275,10 @@ function renderDetail(m) {
   listOrEmpty("rules", m.rules_fired, (r) => el("li", {}, r), "No rule fired: state is NORMAL.");
   // Data-integrity notes: a swapped wristband, or a slow drift since the start of the mission.
   const extra = [];
+  (m.sensor_faults || []).forEach((f) => extra.push(el("li", { class: "integrity" },
+    el("strong", {}, `Sensor check (${f.device_name}): `), f.messages.join(" "), " ", f.action)));
+  if (m.self_report_skipped) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Diary: "),
+    "skipped today (optional), so mood was not assessed."));
   if (m.band_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Wristband check: "), m.band_check.message));
   (m.drift || []).forEach((x) => extra.push(el("li", { class: "integrity" }, el("strong", {}, "Slow drift: "), x.reason)));
   if (extra.length) $("reasons").prepend(...extra);
@@ -226,7 +297,8 @@ function renderDetail(m) {
       return bar;
     })(),
     el("p", { class: "ai-note" }, ai.note));
-  $("actions").replaceChildren(...m.actions.map((a) => el("li", {}, a)));
+  $("actions").replaceChildren(...m.actions.map((a) => el("li", {},
+    ATYPE[actionType(a)] ? el("span", { class: "atype" }, ATYPE[actionType(a)]) : null, a)));
   const r = m.routine;
   $("routine").replaceChildren(
     ...r.reminders.map((x) => el("li", {},
@@ -245,17 +317,18 @@ function renderDetail(m) {
       return el("div", { class: `sig ${s.level ? "flag-" + s.level : ""}` },
         el("div", { class: "t" }, `${s.source === "wristband" ? "Fatigue estimate" : s.name} - ${state.mission.devices[s.device].name}`),
         s.note ? el("div", { class: "about" }, s.note) : null,
-        el("div", { class: "v" }, s.missing ? "not seen" : `${fmt(s.value, meta.decimals)} ${s.unit}`,
-          el("span", { class: "role" }, `  normal ${fmt(s.baseline, meta.decimals)}`)),
-        ser ? sparkline(ser, state.day, s.level) : null);
+        el("div", { class: "v" }, s.missing ? missingWord(s) : `${fmt(s.value, meta.decimals)} ${s.unit}`,
+          s.baseline == null ? null : el("span", { class: "role" }, `  normal ${fmt(s.baseline, meta.decimals)}`)),
+        ser && !s.private ? sparkline(ser, state.day, s.level) : null);
     })
   );
 }
 
 async function render() {
   $("dayLabel").textContent = state.day;
-  state.status = await api(`/api/status?day=${state.day}`);
+  state.status = await api(`/api/status?day=${state.day}&role=${state.role}`);
   renderCabin(state.status.cabin);
+  renderCrewWide(state.status.crew_wide);
   renderCrew(state.status.crew);
   const m = state.status.crew.find((c) => c.id === state.selected) || state.status.crew[0];
   renderDetail(m);
@@ -265,7 +338,7 @@ async function render() {
 
 async function loadReport(aid) {
   const pre = $("report");
-  pre.textContent = await api(`/api/report/${aid}?day=${state.day}&lang=${state.lang}`, true);
+  pre.textContent = await api(`/api/report/${aid}?day=${state.day}&lang=${state.lang}&role=${state.role}`, true);
   pre.dir = state.lang === "ar" ? "rtl" : "ltr";
   pre.lang = state.lang;
 }
@@ -357,6 +430,18 @@ function showError(err) {
   $("report").textContent = `Could not load data: ${err.message}. Is the backend running?`;
 }
 
+// Load every signal's history for the charts, as the current role may see it.
+async function loadSeries() {
+  const jobs = [];
+  for (const m of state.mission.crew) {
+    state.series[m.id] = {};
+    for (const key of Object.keys(state.mission.signals)) {
+      jobs.push(api(`/api/series/${m.id}/${key}?role=${state.role}`).then((s) => { state.series[m.id][key] = s; }));
+    }
+  }
+  await Promise.all(jobs);
+}
+
 async function init() {
   state.mission = await api("/api/mission");
   const slider = $("day");
@@ -366,21 +451,18 @@ async function init() {
   bindBody();
   renderSensors([]);
   $("play").addEventListener("click", togglePlay);
+  $("role").addEventListener("change", (e) => {
+    state.role = e.target.value;
+    if (!["surgeon", "commander"].includes(state.role)) state.selected = state.role;
+    loadSeries().then(render).catch(showError);
+  });
   $("copy").addEventListener("click", () => navigator.clipboard?.writeText($("report").textContent));
   $("langEn").addEventListener("click", () => setLang("en"));
   $("langAr").addEventListener("click", () => setLang("ar"));
   // The browser's print dialog has "Save as PDF"; the print styles show only the report.
   $("pdf").addEventListener("click", () => window.print());
 
-  // Load every signal's history once for the charts.
-  const jobs = [];
-  for (const m of state.mission.crew) {
-    state.series[m.id] = {};
-    for (const key of Object.keys(state.mission.signals)) {
-      jobs.push(api(`/api/series/${m.id}/${key}`).then((s) => { state.series[m.id][key] = s; }));
-    }
-  }
-  await Promise.all(jobs);
+  await loadSeries();
   setDay(state.mission.last_day - 1);
   pollLive();
   setInterval(pollLive, 1500);

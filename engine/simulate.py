@@ -19,6 +19,12 @@ realistic, repeatable scenario (fixed random seed) for the demo:
 * Wristband swap: on day 50 Amira and Chen put on each other's wristbands by mistake.
   The system should spot it from the readings alone and ask them to check their bands,
   without raising a health alarm.
+* Sensor faults (days 30-55): Amira's wristband loses blood oxygen on days 40-41, Chen's
+  glucose patch freezes on days 30-35 (it has expired), Ben's band slips off the skin on
+  day 35 (wrist temperature 31 °C), and some optional diary days are skipped. The system
+  must label these "unavailable" and ask for a sensor check, never read them as illness.
+* Exercise log: minutes of daily resistance and treadmill exercise (exercise adherence,
+  which protects bones and muscles; it is not a bone measurement).
 
 Replace this module with real sensor feeds to use the system for real.
 """
@@ -36,6 +42,16 @@ CAMERA_GAPS = {("A", 60): 5, ("A", 61): 0, ("B", 122): 15}
 # Days two astronauts wore each other's wristbands: day -> (astronaut, astronaut).
 SWAPPED_BANDS = {50: ("A", "C")}
 WRIST_KEYS = ("heart_rate", "hrv", "spo2", "body_temp", "sleep_hours")
+
+# Sensor faults (all before day 69, so the demo days 100-125 are not affected).
+SENSOR_FAULTS = [
+    ("A", "spo2", range(40, 42), "missing"),      # wristband oxygen sensor disconnected
+    ("C", "glucose", range(30, 36), "stuck"),     # expired glucose patch: value frozen
+    ("B", "body_temp", range(35, 36), 31.2),      # band off the skin: implausible temperature
+]
+SKIPPED_DIARY = [("A", 55), ("C", 56), ("C", 57)]  # optional daily diary not filled in
+EXERCISE_PLAN = 90      # planned exercise minutes a day
+SHORT_EXERCISE = {("B", d) for d in range(90, 97)}  # Ben skips most exercise for a week
 
 CREW = [
     {"id": "A", "name": "Amira", "role": "Commander"},
@@ -176,6 +192,31 @@ def generate(seed=42):
     for day, (a, b) in SWAPPED_BANDS.items():
         for k in WRIST_KEYS:
             crew_data[a][day][k], crew_data[b][day][k] = crew_data[b][day][k], crew_data[a][day][k]
+
+    # Sensor faults and skipped diary entries.
+    for aid, key, days, fault in SENSOR_FAULTS:
+        first = None
+        for day in days:
+            if fault == "missing":
+                crew_data[aid][day][key] = None
+            elif fault == "stuck":
+                first = crew_data[aid][day][key] if first is None else first
+                crew_data[aid][day][key] = first
+            else:
+                crew_data[aid][day][key] = fault
+    for aid, day in SKIPPED_DIARY:
+        crew_data[aid][day]["mood_score"] = None
+        crew_data[aid][day]["stress_words"] = None
+
+    # Exercise log (own random stream: other values unchanged).
+    rng5 = random.Random(seed + 4)
+    for member in CREW:
+        aid = member["id"]
+        for day in range(MISSION_START, MISSION_END + 1):
+            minutes = rng5.gauss(EXERCISE_PLAN, 12)
+            if rng5.random() < 0.05 or (aid, day) in SHORT_EXERCISE:
+                minutes = rng5.uniform(0, 30)        # a missed or cut-short session
+            crew_data[aid][day]["exercise_minutes"] = round(max(0, minutes))
 
     for aid in crew_data:
         crew_data[aid] = dict(sorted(crew_data[aid].items()))

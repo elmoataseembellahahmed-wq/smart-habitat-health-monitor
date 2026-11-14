@@ -101,6 +101,21 @@ GENERAL_ACTIONS = {
 }
 
 
+def action_type(text):
+    """What kind of step an action is. The system only observes and suggests: medical
+    decisions stay with the flight surgeon and mission-approved procedures."""
+    t = text.lower()
+    if any(w in t for w in ("flight surgeon", "psychologist", "commander", "notify")):
+        return "escalate"
+    if any(w in t for w in ("re-check", "re-measure", "confirm", "check-in", "check in")):
+        return "confirm"
+    if any(w in t for w in ("scrubber", "sensor", "wristband", "patch", "strap", "camera")):
+        return "equipment"
+    if "no action" in t or "nothing to do" in t:
+        return "none"
+    return "self-care"
+
+
 def _flagged(signals, *keys, min_streak=1):
     return [s for s in signals if s["signal"] in keys and s["level"] and s["streak_days"] >= min_streak]
 

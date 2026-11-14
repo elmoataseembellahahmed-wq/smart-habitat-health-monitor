@@ -131,19 +131,23 @@ class BlinkTracker:
 
     def _measure(self):
         if len(self.samples) < 2:
-            return {"blink_rate": 0.0, "perclos": 0.0, "long_closures": 0}
+            return {"blink_rate": 0.0, "perclos": 0.0, "long_closures": 0, "face_s": 0.0}
         span = max(self.samples[-1][0] - self.samples[0][0], 1e-6)
-        closed = 0.0
+        closed = face = 0.0
         prev = None
         for t, is_open in self.samples:
-            if prev is not None and not prev[1]:
-                closed += min(t - prev[0], 1.0)  # ignore gaps when the face was out of view
+            if prev is not None:
+                step = min(t - prev[0], 1.0)  # ignore gaps when the face was out of view
+                face += step
+                if not prev[1]:
+                    closed += step
             prev = (t, is_open)
         blinks = sum(1 for _, k in self.events if k == "blink")
         return {
             "blink_rate": blinks * 60.0 / span,
             "perclos": min(closed / span, 1.0),
             "long_closures": sum(1 for _, k in self.events if k == "long"),
+            "face_s": face,
         }
 
     # ---------- baseline persistence ----------
@@ -192,7 +196,12 @@ class BlinkTracker:
         # Fatigue score 0-100: eye closure carries most weight, long closures add more.
         fatigue = min(100.0, m["perclos"] / 0.15 * 50 + m["long_closures"] * 15
                       + max(0.0, m["blink_rate"] - (self.baseline_blink_rate or m["blink_rate"])) * 1.5)
+        # Confidence: a minute's measures need enough face time to mean anything.
+        face_s = m["face_s"]
+        confidence = "ok" if face_s >= 0.5 * self.window_s else "low"
         return {
+            "confidence": confidence,
+            "face_seconds_last_window": round(face_s, 1),
             "face_detected": self.face_detected,
             "multiple_faces": self.multiple_faces,
             "calibrating": calibrating,

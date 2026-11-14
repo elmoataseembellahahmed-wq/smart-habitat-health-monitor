@@ -40,12 +40,16 @@ def band_swap(aid, day, crew_data, baseline_for, crew_ids):
     baseline_for(aid, day) gives the personal normal in use on that day.
     """
     mine = crew_data[aid][day]
+    if any(mine.get(k) is None for k in WRIST_SIGNALS):
+        return None                     # a wristband reading is unavailable: can't compare
     base_me = baseline_for(aid, day)
     best = None
     for other in crew_ids:
         if other == aid or day not in crew_data[other]:
             continue
         theirs = crew_data[other][day]
+        if any(theirs.get(k) is None for k in WRIST_SIGNALS):
+            continue
         base_other = baseline_for(other, day)
         as_labelled = _distance(mine, base_me) + _distance(theirs, base_other)
         swapped = _distance(mine, base_other) + _distance(theirs, base_me)

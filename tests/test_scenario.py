@@ -40,6 +40,7 @@ def test_one_bad_night_is_not_an_emergency():
 
 
 def test_cabin_co2_affects_everyone():
+    """Cabin CO2 above the ACT limit puts every crew member in ACT, with a scrubber action."""
     for aid in "ABC":
         assert state(aid, 125) == "ACT"
         assert any("CO2" in a for a in m.assess(aid, 125)["actions"])
@@ -77,6 +78,7 @@ def test_personal_normal_keeps_learning():
 
 
 def test_live_camera_assessment():
+    """Live camera: normal blinking is NORMAL, faster blinking WATCH, long closures ACT."""
     from engine.live import assess
     calm = {"face_detected": True, "calibrating": False, "blink_rate": 15, "perclos": 0.04,
             "long_closures": 0, "baseline_blink_rate": 15, "baseline_perclos": 0.04}
@@ -138,6 +140,7 @@ def test_camera_ignores_single_frame_misses():
 
 
 def test_live_readings_filed_by_wristband():
+    """Live camera readings are filed under the wristband ID, never by face."""
     from engine import live
     live.store({"band": "c", "face_detected": True, "calibrating": False, "blink_rate": 15,
                 "perclos": 0.04, "long_closures": 0, "baseline_blink_rate": 15, "baseline_perclos": 0.04})
@@ -147,12 +150,14 @@ def test_live_readings_filed_by_wristband():
 
 
 def test_body_systems_status():
+    """The body figure colours each body system from its own signals."""
     systems = m.assess("B", 124)["systems"]
     assert systems["heart"]["status"] == "act" and systems["bones"]["status"] == "info"
     assert all(s["status"] == "normal" for k, s in m.assess("A", 110)["systems"].items() if k != "bones")
 
 
 def test_routine_reminders_and_streak():
+    """Routine reminders (cuff check, patch change, exercise) and the days-in-Normal streak."""
     r = m.routine("A", 110)
     ids = [x["id"] for x in r["reminders"]]
     assert set(ids) == {"cuff", "patch", "exercise"}
@@ -173,6 +178,7 @@ def test_arabic_report_covers_everything():
 
 
 def test_every_flag_has_a_reason():
+    """Every flag on every day carries a plain-language reason (explainability)."""
     for aid in "ABC":
         for day in m.days:
             for f in m.assess(aid, day)["flags"]:
@@ -249,6 +255,158 @@ def test_camera_pauses_when_two_faces_are_in_view():
     assert assess(r)["state"] == "PAUSED"
     tr.update(t + 3, True, True, hour=10, faces=1)          # back to one face: measuring again
     assert not tr.reading()["multiple_faces"]
+
+
+def test_sensor_faults_are_never_read_as_illness():
+    """Disconnected, frozen or implausible readings are 'unavailable', reported as a sensor
+    check, and never scored, learned from or shown as a health problem."""
+    cases = {("A", 40): ("wristband", "spo2", "missing"), ("C", 34): ("glucose", "glucose", "stuck"),
+             ("B", 35): ("wristband", "body_temp", "out_of_range")}
+    for (aid, day), (device, key, code) in cases.items():
+        d = m.assess(aid, day)
+        assert d["state"] == "NORMAL", (aid, day)
+        assert not any(f["signal"] == key for f in d["flags"])
+        fault = next(f for f in d["sensor_faults"] if f["device"] == device)
+        assert key in fault["signals"] and code in fault["codes"]
+        sig = next(s for s in d["signals"] if s["signal"] == key)
+        assert sig["missing"] and sig["fault"] == code
+        assert d["coverage"]["confidence"] == "limited" and key in d["coverage"]["safety_gap"]
+        assert m.data["crew"][aid][day][key] is None   # set aside: baselines and the AI skip it
+    assert "Sensor check" in m.report("C", 34) and "فحص الحساسات" in m.report("C", 34, "ar")
+    # No sensor faults on clean days, and no false 'stuck' readings anywhere else.
+    found = sorted({(a, d) for (a, d), issues in m.faults.items()
+                    if any(i["code"] != "skipped" for i in issues.values())})
+    assert found == [("A", 40), ("A", 41), ("B", 35), ("C", 33), ("C", 34), ("C", 35)], found
+
+
+def test_quality_checks_on_injected_faults():
+    """Quality rules on hand-made faults: 4 identical days = frozen, impossible value, missing value."""
+    from engine.quality import check
+    days = {1: {"heart_rate": 60}, 2: {"heart_rate": 60}, 3: {"heart_rate": 60}, 4: {"heart_rate": 60},
+            5: {"heart_rate": 300}, 6: {}}
+    assert check("heart_rate", 3, days) is None              # 3 equal days: still fine
+    assert check("heart_rate", 4, days)["code"] == "stuck"   # 4 equal days: frozen sensor
+    assert check("heart_rate", 5, days)["code"] == "out_of_range"
+    assert check("heart_rate", 6, days)["code"] == "missing"
+
+
+def test_skipped_diary_is_not_a_problem():
+    """The diary is optional self-report: a skipped day is not a fault and not a mood flag."""
+    d = m.assess("A", 55)
+    assert d["self_report_skipped"] and not d["sensor_faults"] and d["state"] == "NORMAL"
+    assert "mood_score" in d["coverage"]["unavailable"]
+
+
+def test_no_green_without_saying_what_is_missing():
+    """Every decision says how many signals it is based on."""
+    for aid in "ABC":
+        for day in (30, 40, 61, 122):
+            cov = m.assess(aid, day)["coverage"]
+            assert cov["measured"] + len(cov["unavailable"]) == cov["total"] == 13
+            assert cov["note"].startswith("Status based on")
+
+
+def test_wrist_temperature_is_an_estimate_to_confirm():
+    from engine.analysis import analyse_signal
+    base = m.baseline_for("A", 30)
+    days = {30: {**m.data["crew"]["A"][30], "body_temp": 38.4}}
+    a = analyse_signal("body_temp", 30, days, base)
+    assert a["level"] == "strong"                            # a warning, not 'critical'
+    assert "confirm with a core temperature" in a["reason"]
+
+
+def test_crew_wide_vs_individual():
+    """Cabin CO2 + the same change in several astronauts = environmental; a shared change
+    with no cabin cause is not blamed on the air; extra signals stay individual."""
+    s125 = m.status(125)["crew_wide"]
+    assert "breathing_rate" in s125["environmental"]
+    assert any(b["id"] == "B" for b in s125["beyond_cabin"])
+    s121 = m.status(121)["crew_wide"]
+    assert not s121["environmental"] and s121["shared_no_cabin_cause"]
+
+
+def test_radiation_and_co2_context():
+    cab = {c["signal"]: c for c in m.assess("A", 125)["cabin"]}
+    total = sum(m.data["cabin"][d]["radiation"] for d in m.days)
+    assert abs(cab["radiation"]["mission_total"] - round(total, 1)) < 0.05
+    assert cab["radiation"]["career_limit"] == 600.0
+    assert "avg_7d" in cab["co2"]
+
+
+def test_every_decision_is_versioned():
+    """Any past alert can be traced to the exact rules, thresholds, model and personal normal."""
+    v = m.assess("B", 121)["versions"]
+    assert v["personal_normal"] == "B-day120" and v["learned_from_days"][1] <= 119
+    assert {"software", "rules", "thresholds", "model"} <= set(v)
+    assert "Versions:" in m.report("B", 121) and "الإصدارات" in m.report("B", 121, "ar")
+
+
+def test_role_based_access():
+    from engine import access
+    cmd = {c["id"]: c for c in m.status(122, "commander")["crew"]}
+    mood = next(s for s in cmd["B"]["signals"] if s["signal"] == "mood_score")
+    assert mood["value"] is None and mood["private"]
+    assert "private self-report" in m.report("B", 122, "en", "commander")
+    assert str(m.assess("B", 122)["signals"][0]["value"]) in str(cmd["B"]["signals"][0]["value"])
+    mate = {c["id"]: c for c in m.status(122, "A")["crew"]}
+    assert mate["A"]["access"] == "full"
+    assert mate["B"]["restricted"] and mate["B"]["state"] == "ACT" and not mate["B"]["signals"]
+    assert "Only the status" in m.report("B", 122, "en", "A")
+    full = m.status(122, "surgeon")["crew"][1]
+    assert next(s for s in full["signals"] if s["signal"] == "mood_score")["value"] is not None
+    hidden = access.series_view(m.series("B", "mood_score"), "B", "commander")
+    assert all(p["value"] is None for p in hidden["points"])
+    access.log("commander", "B", "test")
+    assert access.audit()[-1]["role"] == "commander"
+
+
+def test_camera_never_stores_or_sends_images():
+    """Privacy test: no camera code writes images or video, and what is sent to the server
+    is only numbers and short labels."""
+    import re
+    from camera.blink_tracker import BlinkTracker
+    root = Path(__file__).resolve().parent.parent
+    for f in (root / "camera").glob("*.py"):
+        code = f.read_text(encoding="utf-8")
+        for banned in ("imwrite", "VideoWriter", "imencode", "pickle", "np.save"):
+            assert banned not in code, (f.name, banned)
+        assert not re.search(r"open\([^)]*['\"]wb['\"]", code), f.name
+    tr = BlinkTracker(calibration_s=5)
+    _feed(tr, 0.0, 20, blink_every=4)
+    payload = {**tr.reading(), "band": "B"}
+
+    def leaves(x):
+        if isinstance(x, dict):
+            for v in x.values():
+                yield from leaves(v)
+        else:
+            yield x
+    for v in leaves(payload):
+        assert v is None or isinstance(v, (bool, int, float)) or (isinstance(v, str) and len(v) < 20), v
+
+
+def test_camera_low_confidence_never_acts_alone():
+    from engine.live import assess
+    r = {"face_detected": True, "calibrating": False, "blink_rate": 30, "perclos": 0.4, "long_closures": 3,
+         "baseline_blink_rate": 15, "baseline_perclos": 0.04}
+    assert assess(r)["state"] == "ACT"
+    low = assess({**r, "confidence": "low", "face_seconds_last_window": 12})
+    assert low["state"] == "WATCH" and any("Low confidence" in x for x in low["reasons"])
+
+
+def test_exercise_adherence_is_not_a_bone_measurement():
+    ex = m.exercise("B", 96)
+    assert ex["low"] and "not a bone or muscle measurement" in ex["note"]
+    assert m.assess("B", 96)["systems"]["bones"]["status"] == "watch"
+    assert "Not measured" in m.mission()["body_systems"]["bones"]["measured"]
+
+
+def test_actions_are_typed():
+    from engine.fusion import action_type
+    assert action_type("Notify the flight surgeon with this report at the next contact window.") == "escalate"
+    assert action_type("Confirm with a finger-prick glucose check.") == "confirm"
+    assert action_type("Inspect and service the CO2 scrubber.") == "equipment"
+    assert action_type("Protect tonight's sleep window.") == "self-care"
 
 
 if __name__ == "__main__":

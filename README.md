@@ -10,6 +10,28 @@ astronaut what is happening, why, and what to do: on a **clickable body figure**
 daily report (English or Arabic). It runs fully offline, because a message from Mars can take
 up to 20 minutes to reach Earth.
 
+## Scope (what this prototype is, and is not)
+* It monitors **astronaut health** from 13 signals and **two habitat values: cabin CO2 and radiation dose**. It does not monitor oxygen, pressure, humidity or trace contaminants.
+* Only the webcam is a real input. All other devices are simulated (see `docs/FEATURE_STATUS.md`).
+* It does **not** measure bone density, muscle mass or immune status. Bones and muscles show exercise adherence only; the immune system shows only a fever warning.
+* Thresholds and actions are prototype values, not clinically validated (`docs/THRESHOLDS.md`). It is decision support: the flight surgeon makes medical decisions.
+
+## Documentation
+| Document | What it answers |
+|---|---|
+| `docs/GAP_RESOLUTION.md` | All 35 issues from the gap analysis and what was done about each |
+| `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope; hardware status |
+| `docs/THRESHOLDS.md` | Every threshold, with its source or "project assumption" |
+| `docs/RULES.md` | The full rule catalogue, decision flow, missing data, action policy |
+| `docs/DATA_DICTIONARY.md` | The numbered signal list and time model (generated from the code) |
+| `docs/SIMULATION.md` and `data/events.csv` | How the data is made and the labelled events |
+| `docs/SCENARIOS.md` | 13 scenarios, expected vs actual (generated from a run) |
+| `docs/MODEL_CARD.md` | The AI model and the evaluation on 20 new missions |
+| `docs/PRIVACY_SECURITY.md` | Camera data flow, who sees what, retention, threat model |
+| `docs/PERFORMANCE.md` | Speed, memory, offline proof |
+| `docs/TEST_REPORT.md` | Every automated test and its result |
+| `docs/ARCHITECTURE.md` | The architecture diagram |
+
 ## Run it
 You need Python 3.10 or newer.
 

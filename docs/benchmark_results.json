@@ -1,0 +1,15 @@
+{
+  "machine": "x86_64, Python 3.13.18",
+  "startup_seconds": 0.44,
+  "learn_whole_mission_seconds": 7.19,
+  "per_mission_day_whole_crew_ms": {
+    "median": 107.1,
+    "max": 275.1
+  },
+  "report_ms": 11.8,
+  "peak_memory_mb": 291.9,
+  "data_file_kb": 45.0,
+  "network_used": false,
+  "third_party_packages_needed_by_engine": "none (Python standard library only)",
+  "engine_files": 15
+}

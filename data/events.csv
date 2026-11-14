@@ -1,0 +1,15 @@
+day_from,day_to,astronaut,event,label
+119,125,B,gradual_decline,stress and fatigue build-up (main story)
+121,121,C,single_bad_night,"one bad night, recovers"
+123,125,all,cabin_fault,CO2 scrubber degrading
+60,60,A,camera_gap,face in view 5 min
+61,61,A,camera_gap,face in view 0 min
+122,122,B,camera_gap,face in view 15 min
+50,50,A+C,wristband_swap,bands swapped by mistake
+40,41,A,sensor_fault,spo2: missing
+30,35,C,sensor_fault,glucose: stuck
+35,35,B,sensor_fault,body_temp: 31.2
+55,55,A,diary_skipped,optional diary not filled in
+56,56,C,diary_skipped,optional diary not filled in
+57,57,C,diary_skipped,optional diary not filled in
+90,96,B,low_exercise,exercise mostly skipped for a week

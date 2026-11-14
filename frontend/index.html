@@ -13,6 +13,16 @@
       <h1>Astronaut Health Monitor</h1>
       <p class="sub">Smart habitat &middot; no tests needed &middot; runs offline &middot; simulated Mars transit</p>
     </div>
+    <div class="viewas">
+      <label for="role">View as</label>
+      <select id="role" aria-label="Whose view">
+        <option value="surgeon">Flight surgeon (everything)</option>
+        <option value="commander">Commander (no private self-report)</option>
+        <option value="A">Amira (astronaut: own data)</option>
+        <option value="B">Ben (astronaut: own data)</option>
+        <option value="C">Chen (astronaut: own data)</option>
+      </select>
+    </div>
     <div class="player">
       <button id="play" type="button" aria-label="Play the mission">&#9654; Play</button>
       <label for="day">Mission day <strong id="dayLabel">&ndash;</strong></label>
@@ -24,6 +34,8 @@
 
   <section class="live" id="live" aria-label="Live camera"></section>
 
+  <section class="crewwide" id="crewwide" aria-label="Crew-wide events"></section>
+
   <section class="crew" id="crew" aria-label="Crew status"></section>
 
   <section class="detail" id="detail" aria-live="polite">
@@ -31,6 +43,8 @@
       <h2 id="detailTitle">&ndash;</h2>
       <span class="badge" id="detailBadge"></span>
     </div>
+
+    <div class="summary" id="summary" aria-label="Summary for the astronaut"></div>
 
     <div class="body-panel">
       <div class="body-figure">
@@ -86,7 +100,7 @@
         <ul id="rules" class="plain"></ul>
         <h3>AI check <span class="hint">(Isolation Forest trained on this astronaut's normal days)</span></h3>
         <div id="ai"></div>
-        <h3>Recommended actions</h3>
+        <h3>Suggested actions <span class="hint">(prototype list: mission-approved procedures and the flight surgeon decide)</span></h3>
         <ol id="actions"></ol>
         <h3>Routine <span class="hint">(the few things the habitat still needs from you)</span></h3>
         <ul id="routine" class="plain"></ul>

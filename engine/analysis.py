@@ -9,7 +9,7 @@ reason, so the crew and the flight surgeon can see exactly why it was raised.
 
 from statistics import mean, pstdev
 
-from .signals import SIGNALS, CABIN_SIGNALS
+from .signals import SIGNALS, CABIN_SIGNALS, CAREER_DOSE_LIMIT, CO2_7DAY_REFERENCE
 
 # With 13 signals checked every day, 2 standard deviations would raise a false flag
 # on most days from natural noise alone, so the bar is set a little higher.
@@ -21,7 +21,8 @@ def compute_baseline(days, baseline_days):
     """Mean and spread of each signal over the baseline window."""
     baseline = {}
     for key, meta in SIGNALS.items():
-        values = [days[d][key] for d in baseline_days if d in days]
+        # Unavailable readings (sensor faults, skipped diary) are never learned from.
+        values = [days[d][key] for d in baseline_days if d in days and days[d].get(key) is not None]
         spread = pstdev(values) if len(values) > 1 else 0.0
         # Floor on the spread so tiny natural variation doesn't cause false alarms.
         floor = meta.get("min_sd", max(abs(mean(values)) * 0.03, 0.5))
@@ -63,7 +64,7 @@ def analyse_signal(key, day, days, baseline):
     # How many days in a row (ending today) this signal has been at least mildly off.
     streak = 0
     d = day
-    while d in days and _bad_z(key, days[d][key], base) >= MILD_Z:
+    while d in days and days[d].get(key) is not None and _bad_z(key, days[d][key], base) >= MILD_Z:
         streak += 1
         d -= 1
 
@@ -75,6 +76,9 @@ def analyse_signal(key, day, days, baseline):
     broken = hard_limit_broken(key, value)
     if broken:
         level = "critical"
+        if meta.get("confirm_first"):
+            # An estimate (wrist skin temperature) is a warning to confirm, never an emergency alone.
+            level = "strong"
 
     result = {
         "signal": key,
@@ -101,6 +105,8 @@ def analyse_signal(key, day, days, baseline):
             text += f" for {streak} days in a row"
         if broken:
             text += f"; {broken[0]} the safety limit of {broken[1]:g} {meta['unit']}"
+            if meta.get("confirm_first"):
+                text += " (an estimate: confirm with a core temperature check before acting)"
         result["reason"] = text + "."
     return result
 
@@ -116,6 +122,21 @@ def analyse_cabin(day, cabin):
             limit = meta[level]
             reason = (f"{meta['name']} is {_fmt(key, value, CABIN_SIGNALS)} {meta['unit']}, "
                       f"above the {level} limit of {limit} {meta['unit']}.")
-        out.append({"signal": key, "name": meta["name"], "unit": meta["unit"],
-                    "value": value, "level": level, "reason": reason})
+        item = {"signal": key, "name": meta["name"], "unit": meta["unit"],
+                "value": value, "level": level, "reason": reason}
+        past = [cabin[d][key] for d in cabin if d <= day]
+        if key == "radiation":
+            # One day's dose says little about risk; the running mission total matters.
+            total = sum(past)
+            item.update(mission_total=round(total, 1), career_limit=CAREER_DOSE_LIMIT,
+                        pct_of_career_limit=round(total / CAREER_DOSE_LIMIT * 100, 1),
+                        note=(f"Mission total so far {total:.1f} mSv, {total / CAREER_DOSE_LIMIT * 100:.0f}% "
+                              f"of NASA's 600 mSv career limit (simulated dosimeter)."))
+        if key == "co2":
+            week = [cabin[d][key] for d in cabin if day - 7 < d <= day]
+            avg = sum(week) / len(week)
+            item.update(avg_7d=round(avg, 2), note=(
+                f"7-day average {avg:.1f} mmHg" + (f", above the {CO2_7DAY_REFERENCE} mmHg level that keeps "
+                                                   "headache risk low." if avg > CO2_7DAY_REFERENCE else ".")))
+        out.append(item)
     return out

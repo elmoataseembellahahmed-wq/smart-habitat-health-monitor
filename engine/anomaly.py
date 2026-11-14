@@ -89,7 +89,8 @@ class AnomalyModel:
     def __init__(self, days, baseline_days, baseline_stats, signal_keys):
         self.keys = list(signal_keys)
         self.stats = baseline_stats
-        real = [self._vector(days[d]) for d in baseline_days if d in days]
+        real = [self._vector(days[d]) for d in baseline_days
+                if d in days and all(days[d].get(k) is not None for k in self.keys)]
         # 14 real days are too few for a forest to tell "a bit unusual" from "very
         # unusual". So we resample the real baseline days with small noise. This keeps
         # how the signals move together on real days, and gives the trees enough data.

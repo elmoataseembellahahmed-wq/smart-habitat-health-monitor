@@ -5,6 +5,21 @@ patterns, actions), never by translating free text, so both say exactly the same
 """
 
 from .signals import SIGNALS, CABIN_SIGNALS
+from .fusion import action_type
+
+TYPE_AR = {"escalate": "تصعيد", "equipment": "أجهزة", "confirm": "تأكيد أولًا",
+           "self-care": "عناية ذاتية", "none": "-"}
+CONF_AR = {"full": "كاملة", "limited": "محدودة", "low": "منخفضة"}
+DEVICE_AR = {"wristband": "السوار", "chest": "حزام الصدر", "bp": "حساس ضغط الدم",
+             "glucose": "لاصقة السكر", "camera": "الكاميرا", "voice": "اليوميات"}
+FAULT_AR = {"missing": "لم تصل قراءة اليوم (الحساس مفصول أو غير ملبوس)",
+            "out_of_range": "القراءة غير ممكنة جسديًا، فاعتُبرت خطأ في الحساس",
+            "stuck": "نفس القيمة بالضبط لعدة أيام متتالية: الحساس متجمّد أو منتهي الصلاحية"}
+DEVICE_ACTION_AR = {"wristband": "افحص السوار: هل هو ملبوس جيدًا ومشحون ومتصل؟",
+                    "chest": "افحص تثبيت حزام الصدر وبطاريته.",
+                    "bp": "افحص حساس ضغط الدم وخذ قراءة بجهاز الكُمّ للتأكد.",
+                    "glucose": "افحص لاصقة السكر واستبدلها إن انتهت صلاحيتها.",
+                    "camera": "افحص كاميرا المقصورة."}
 
 STATE_AR = {"NORMAL": "طبيعي", "WATCH": "مراقبة", "ACT": "تدخّل فوري"}
 LEVEL_AR = {"mild": "خفيف", "strong": "قوي", "critical": "حرج"}
@@ -20,9 +35,9 @@ SIGNAL_AR = {
     "sleep_hours": ("مدة النوم", "ساعة"),
     "fatigue_score": ("درجة إرهاق الوجه", "من 100"),
     "blink_rate": ("معدل الرمش", "رمشة في الدقيقة"),
-    "mood_score": ("درجة المزاج (الصوت + اليوميات)", "من 100"),
+    "mood_score": ("درجة المزاج (تقرير ذاتي اختياري)", "من 100"),
     "stress_words": ("كلمات الضغط في اليوميات", "كلمة في اليوم"),
-    "body_temp": ("حرارة الجسم (تقدير من المعصم)", "°م"),
+    "body_temp": ("حرارة جلد المعصم (تقدير لحرارة الجسم)", "°م"),
     "breathing_rate": ("معدل التنفس", "نَفَس في الدقيقة"),
     "bp_systolic": ("ضغط الدم الانقباضي", "ملم زئبق"),
     "bp_diastolic": ("ضغط الدم الانبساطي", "ملم زئبق"),
@@ -118,6 +133,9 @@ def _fmt(value, decimals):
 
 def reason_ar(f):
     name, unit = SIGNAL_AR[f["signal"]]
+    if f.get("private"):
+        return f"{name}: إشارة تقرير ذاتي خاصة خارج المعتاد لهذا الرائد (التفاصيل لطبيب الرحلة فقط)."
+
     prefix = ""
     if f.get("source") == "wristband":
         name = "تقدير الإرهاق من السوار"
@@ -134,6 +152,8 @@ def reason_ar(f):
     if f.get("limit"):
         side = "تحت" if f["limit"][0] == "below" else "فوق"
         text += f"، و{side} حد الأمان ({f['limit'][1]:g} {unit})"
+        if SIGNALS[f["signal"]].get("confirm_first"):
+            text += " (قيمة تقديرية: تأكّد بقياس الحرارة من الفم أو الأذن قبل أي إجراء)"
     return text + "."
 
 
@@ -175,6 +195,17 @@ def build_report_ar(member, day, decision, trend, cabin):
     L.append(f"التقرير الصحي اليومي  -  اليوم {day} من المهمة")
     L.append(f"فرد الطاقم: {name} ({role})")
     L.append(f"الحالة: [{STATE_AR[decision['state']]}]  (مجموع الانحراف {decision['score']})")
+    cov = decision.get("coverage")
+    if cov:
+        missing = "، ".join(SIGNAL_AR[k][0] for k in cov["unavailable"])
+        line = f"اكتمال البيانات: {CONF_AR[cov['confidence']]} - الحالة مبنية على {cov['measured']} من {cov['total']} إشارة"
+        if cov["estimated"]:
+            line += f" ({len(cov['estimated'])} منها تقديرية)"
+        if missing:
+            line += f". غير متاح اليوم: {missing}"
+        if cov["safety_gap"]:
+            line += ". إشارة لها حد أمان غير متاحة، فكلمة «طبيعي» لا تستبعد مشكلة فيها"
+        L.append(line + ".")
     L.append("")
     L.append(f"الاتجاه في آخر {len(trend)} أيام: "
              + "  ←  ".join(f"اليوم {t['day']}: {STATE_AR[t['state']]}" for t in trend))
@@ -200,6 +231,17 @@ def build_report_ar(member, day, decision, trend, cabin):
                 L.append(f"  - {rule_ar(c)}")
             L.append("")
 
+    faults = decision.get("sensor_faults") or []
+    if faults or decision.get("self_report_skipped"):
+        L.append("فحص الحساسات (أجهزة، وليست صحة):")
+        for f in faults:
+            for k, code in zip(f["signals"], f["codes"]):
+                L.append(f"  - {DEVICE_AR.get(f['device'], f['device'])} ({SIGNAL_AR[k][0]}): {FAULT_AR[code]}.")
+            L.append(f"    ← {DEVICE_ACTION_AR.get(f['device'], 'افحص الحساس.')}")
+        if decision.get("self_report_skipped"):
+            L.append("  - لم تُكتب اليوميات اليوم (وهي اختيارية)، فلم يُقيَّم المزاج. لا مشكلة في ذلك.")
+        L.append("")
+
     band = decision.get("band_check")
     if band:
         other = NAME_AR.get(band["with_name"], band["with_name"])
@@ -224,16 +266,31 @@ def build_report_ar(member, day, decision, trend, cabin):
         L.append(f"  {note}")
         L.append("")
 
-    cabin_flags = [c for c in cabin if c["level"]]
-    if cabin_flags:
-        L.append("بيئة المقصورة:")
-        for c in cabin_flags:
+    L.append("بيئة المقصورة:")
+    for c in cabin:
+        if c["level"]:
             L.append(f"  - {cabin_reason_ar(c)}")
-        L.append("")
+        if c["signal"] == "radiation" and "mission_total" in c:
+            L.append(f"  - إجمالي جرعة الإشعاع في المهمة حتى الآن {c['mission_total']:.1f} ملّي سيفرت، أي "
+                     f"{c['pct_of_career_limit']:.0f}% من حد ناسا المهني (600 ملّي سيفرت) (مقياس جرعة محاكى).")
+        if c["signal"] == "co2" and "avg_7d" in c:
+            L.append(f"  - متوسط ثاني أكسيد الكربون في آخر 7 أيام {c['avg_7d']:.1f} ملم زئبق"
+                     + ("، أعلى من 2.5 الذي يبقي خطر الصداع منخفضًا." if c["avg_7d"] > 2.5 else "."))
+    cw = decision.get("crew_wide") or {}
+    if cw.get("environmental"):
+        L.append("  - على مستوى الطاقم: تغيّر مشترك مع ارتفاع ثاني أكسيد الكربون في: "
+                 + "، ".join(SIGNAL_AR[k][0] for k in cw["environmental"]) + ". الأرجح سبب بيئي: أصلح الهواء أولًا.")
+    if cw.get("shared_no_cabin_cause"):
+        L.append("  - على مستوى الطاقم: تغيّر مشترك بلا سبب في المقصورة: "
+                 + "، ".join(SIGNAL_AR[k][0] for k in cw["shared_no_cabin_cause"])
+                 + ". يُعامل كمشكلات فردية؛ افحص الأسباب المشتركة (الجدول، العبء، عدوى).")
+    for b in cw.get("beyond_cabin", []):
+        L.append(f"  - {NAME_AR.get(b['name'], b['name'])}: تغيّرات أكثر مما يفسّره هواء المقصورة، فهي أيضًا نمط صحي فردي.")
+    L.append("")
 
-    L.append("الإجراءات المقترحة:")
+    L.append("الإجراءات المقترحة (قائمة نموذج أولي؛ اتبع الإجراءات المعتمدة للمهمة وطبيب الرحلة):")
     for i, a in enumerate(decision["actions"], 1):
-        L.append(f"  {i}. {ACTION_AR.get(a, a)}")
+        L.append(f"  {i}. [{TYPE_AR[action_type(a)]}] {ACTION_AR.get(a, a)}")
     L.append("")
 
     routine = decision.get("routine")
@@ -245,6 +302,11 @@ def build_report_ar(member, day, decision, trend, cabin):
         L.append(f"  - أيام متتالية في الحالة الطبيعية: {routine['normal_streak']}")
         L.append("")
 
-    L.append("أُنشئ على متن المركبة من بيانات محاكاة. للمساعدة في القرار فقط؛ "
-             "القرارات الطبية يتخذها طبيب الرحلة.")
+    v = decision.get("versions")
+    if v:
+        L.append(f"الإصدارات: البرنامج {v['software']}، {v['rules']}، {v['thresholds']}، {v['model']}، "
+                 f"المعدل الطبيعي {v['personal_normal']} (تعلّمه من الأيام {v['learned_from_days'][0]}-"
+                 f"{v['learned_from_days'][1]}، {v['learned_from_days'][2]} يومًا).")
+    L.append("أُنشئ على متن المركبة من بيانات محاكاة. الحدود نموذج أولي وليست للقرارات الطبية. "
+             "للمساعدة في القرار فقط؛ القرارات الطبية يتخذها طبيب الرحلة.")
     return "\n".join(L)

@@ -5,7 +5,11 @@ actions), so it cannot invent anything. It runs offline. If you later add a
 language model to polish the wording, give it this text as its only input.
 """
 
+from .fusion import action_type
+
 ICON = {"NORMAL": "[NORMAL]", "WATCH": "[WATCH]", "ACT": "[ACT NOW]"}
+TYPE = {"escalate": "escalate", "equipment": "equipment", "confirm": "confirm first",
+        "self-care": "self-care", "none": "-"}
 
 
 def build_report(member, day, decision, trend, cabin):
@@ -13,6 +17,9 @@ def build_report(member, day, decision, trend, cabin):
     lines.append(f"DAILY HEALTH REPORT  -  Mission day {day}")
     lines.append(f"Crew member: {member['name']} ({member['role']})")
     lines.append(f"Status: {ICON[decision['state']]}  (deviation score {decision['score']})")
+    cov = decision.get("coverage")
+    if cov:
+        lines.append(f"Data coverage: {cov['confidence'].upper()} - {cov['note']}")
     lines.append("")
 
     trend_text = "  ->  ".join(f"day {t['day']}: {t['state']}" for t in trend)
@@ -38,6 +45,17 @@ def build_report(member, day, decision, trend, cabin):
                 lines.append(f"  - {r}")
             lines.append("")
 
+    faults = decision.get("sensor_faults") or []
+    if faults or decision.get("self_report_skipped"):
+        lines.append("Sensor check (equipment, not health):")
+        for f in faults:
+            for msg in f["messages"]:
+                lines.append(f"  - {f['device_name']}: {msg}")
+            lines.append(f"    -> {f['action']}")
+        if decision.get("self_report_skipped"):
+            lines.append("  - Daily diary skipped (optional): mood was not assessed today. That is fine.")
+        lines.append("")
+
     band = decision.get("band_check")
     if band:
         lines.append("Wristband check:")
@@ -56,16 +74,19 @@ def build_report(member, day, decision, trend, cabin):
         lines.append(f"  {ai['note']}")
         lines.append("")
 
-    cabin_flags = [c for c in cabin if c["level"]]
-    if cabin_flags:
-        lines.append("Cabin environment:")
-        for c in cabin_flags:
+    lines.append("Cabin environment:")
+    for c in cabin:
+        if c["level"]:
             lines.append(f"  - {c['reason']}")
-        lines.append("")
+        if c.get("note"):
+            lines.append(f"  - {c['note']}")
+    for n in (decision.get("crew_wide") or {}).get("notes", []):
+        lines.append(f"  - Crew-wide: {n}")
+    lines.append("")
 
-    lines.append("Recommended actions:")
+    lines.append("Suggested actions (prototype list; follow mission-approved procedures and the flight surgeon):")
     for i, a in enumerate(decision["actions"], 1):
-        lines.append(f"  {i}. {a}")
+        lines.append(f"  {i}. [{TYPE[action_type(a)]}] {a}")
     lines.append("")
 
     routine = decision.get("routine")
@@ -77,6 +98,11 @@ def build_report(member, day, decision, trend, cabin):
         lines.append(f"  - Days in a row in NORMAL: {routine['normal_streak']}")
         lines.append("")
 
-    lines.append("Generated on board from simulated data. Decision support only; "
-                 "the flight surgeon makes medical decisions.")
+    v = decision.get("versions")
+    if v:
+        lines.append(f"Versions: software {v['software']}, {v['rules']}, {v['thresholds']}, {v['model']}, "
+                     f"personal normal {v['personal_normal']} (learned from days {v['learned_from_days'][0]}-"
+                     f"{v['learned_from_days'][1]}, {v['learned_from_days'][2]} days used).")
+    lines.append("Generated on board from simulated data. Prototype thresholds, not for medical decisions. "
+                 "Decision support only; the flight surgeon makes medical decisions.")
     return "\n".join(lines)

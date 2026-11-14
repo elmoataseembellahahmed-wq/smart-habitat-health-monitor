@@ -74,11 +74,18 @@ def assess(reading):
     else:
         state = "NORMAL"
         reasons.append("Blinking and eye closure are within this person's normal.")
+    if reading.get("confidence") == "low":
+        # Too little face time in the last minute: the camera alone never triggers ACT.
+        reasons.append(f"Low confidence: the face was in view only {reading.get('face_seconds_last_window', 0):.0f} s "
+                       "of the last minute.")
+        if state == "ACT":
+            state = "WATCH"
 
     actions = {
         "NORMAL": [],
         "WATCH": ["Take a short break and rest the eyes before the next demanding task."],
-        "ACT": ["Stop safety-critical work now (robotic arm, docking, EVA prep) and rest.",
+        "ACT": ["Check in with the astronaut now. If they confirm they are drowsy, pause safety-critical "
+                "work (robotic arm, docking, EVA prep) and rest. The camera is a warning, not a diagnosis.",
                 "Notify the commander and log the event for the flight surgeon."],
     }[state]
     return {"state": state, "reasons": reasons, "actions": actions}
