@@ -7,18 +7,23 @@ Then open http://127.0.0.1:8000
 
 import json
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 from engine import HealthMonitor, live, access
+from engine.manual import QuickCheck, Upload, template_csv
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
 monitor = HealthMonitor()
 monitor.status(monitor.days[-1])  # learn every week of the mission once, at startup
-
+quick = QuickCheck(monitor)        # manual test: new days typed in by hand
+uploaded = Upload()                # manual test: a whole mission from a CSV file
+manual_lock = threading.Lock()
+MAX_UPLOAD = 5_000_000
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
@@ -43,6 +48,23 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(f"Unknown role: {role}")
             if parts == []:
                 return self._send(200, (FRONTEND / "index.html").read_bytes(), "text/html")
+            if parts == ["manual"]:
+                return self._send(200, (FRONTEND / "manual.html").read_bytes(), "text/html")
+            if parts[:2] == ["api", "manual"]:
+                with manual_lock:
+                    if parts[2:] == ["defaults"]:
+                        return self._json(quick.defaults(q.get("aid", ["A"])[0]))
+                    if parts[2:] == ["template.csv"]:
+                        data = template_csv(full=q.get("full", ["0"])[0] == "1").encode("utf-8")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/csv; charset=utf-8")
+                        self.send_header("Content-Disposition", "attachment; filename=mission_template.csv")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        return self.wfile.write(data)
+                    if parts[2:4] == ["upload", "report"] and len(parts) == 5:
+                        lang = "ar" if q.get("lang", ["en"])[0] == "ar" else "en"
+                        return self._send(200, uploaded.report(parts[4], day, lang), "text/plain")
             if parts[0] == "static" and len(parts) == 2:
                 f = FRONTEND / parts[1]
                 if f.parent == FRONTEND and f.suffix in TYPES and f.exists():
@@ -77,7 +99,25 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, json.dumps({"detail": str(e)}))
 
     def do_POST(self):
-        if urlparse(self.path).path == "/api/live":
+        path = urlparse(self.path).path
+        if path.startswith("/api/manual/"):
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if length > MAX_UPLOAD:
+                    return self._send(413, json.dumps({"detail": "File too large (5 MB max)"}))
+                body = self.rfile.read(length).decode("utf-8-sig")
+                with manual_lock:
+                    if path == "/api/manual/day":
+                        b = json.loads(body or "{}")
+                        return self._json(quick.add(b.get("aid", "A"), b.get("values", {}), b.get("cabin", {})))
+                    if path == "/api/manual/reset":
+                        quick.reset()
+                        return self._json({"ok": True})
+                    if path == "/api/manual/upload":
+                        return self._json(uploaded.load(body))
+            except (KeyError, ValueError, json.JSONDecodeError) as e:
+                return self._send(400, json.dumps({"detail": str(e)}))
+        if path == "/api/live":
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 live.store(json.loads(self.rfile.read(length) or b"{}"))

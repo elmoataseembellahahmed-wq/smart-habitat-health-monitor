@@ -409,6 +409,39 @@ def test_actions_are_typed():
     assert action_type("Protect tonight's sleep window.") == "self-care"
 
 
+def test_manual_quick_check():
+    """Manual test: days typed in by hand go through the same rules (2 bad days = ACT)."""
+    from engine.manual import QuickCheck
+    q = QuickCheck(m)
+    first = q.add("A", q.defaults("A")["values"], {})
+    assert first["day"] == 126 and first["decision"]["state"] == "NORMAL"
+    bad = dict(q.defaults("A")["values"], heart_rate=85, hrv=30, sleep_hours=4.0, mood_score=40, spo2=None)
+    assert q.add("A", bad, {})["decision"]["state"] == "WATCH"
+    two = q.add("A", bad, {})
+    assert two["decision"]["state"] == "ACT"
+    assert any(f["device"] == "wristband" for f in two["decision"]["sensor_faults"])
+    low = q.add("A", dict(bad, spo2=89), {})
+    assert any(c["rule"] == "safety_limit" for c in low["decision"]["rule_codes"])
+    assert m.days[-1] == 125                    # the demo mission itself is untouched
+    q.reset()
+    assert q.next_day() == 126
+
+
+def test_manual_csv_upload():
+    """Manual test: a whole mission from CSV. Bad files get clear errors; the demo
+    mission uploaded as CSV gives the same decisions."""
+    from engine.manual import Upload, template_csv
+    assert "Missing columns" in Upload().load("day,astronaut_id\n1,A")["errors"][0]
+    short = "\n".join(template_csv().splitlines()[:1 + 3 * 10])   # only 10 days
+    assert any("at least 15 days" in e for e in Upload().load(short)["errors"])
+    u = Upload()
+    res = u.load(template_csv(full=True))
+    assert res["ok"]
+    states = {x["day"]: x["state"] for x in res["grid"]["B"]}
+    assert states[120] == "WATCH" and states[121] == "ACT"
+    assert "DAILY HEALTH REPORT" in u.report("B", 121)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

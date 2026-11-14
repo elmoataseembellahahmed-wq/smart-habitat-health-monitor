@@ -60,6 +60,34 @@ class HealthMonitor:
         self._rule_states = {}  # (aid, day) -> rule-based state, used to pick learning days
         self._band = {}         # (aid, day) -> wristband swap check result
 
+    # ---------- adding data (manual entry, or a live feed) ----------
+    def add_day(self, day, readings, cabin):
+        """Add one new mission day: {astronaut id: reading} and the cabin values.
+        The new readings go through the same quality checks as everything else."""
+        if day in self.data["cabin"]:
+            raise ValueError(f"Day {day} already exists")
+        for aid, reading in readings.items():
+            self.data["crew"][aid][day] = dict(reading)
+        self.data["cabin"][day] = dict(cabin)
+        self.days.append(day)
+        for aid in readings:
+            days = self.data["crew"][aid]
+            issues = {k: c for k in CORE_SIGNALS if (c := quality.check(k, day, days))}
+            if issues:
+                self.faults[(aid, day)] = issues
+                for key in issues:
+                    self.raw_values[(aid, day, key)] = days[day].get(key)
+                    days[day][key] = None
+            days[day]["wrist_fatigue"] = wrist_fatigue(days[day])
+
+    def share_learning(self, other):
+        """Reuse another monitor's learned weeks (same data up to its last day), so a
+        copy for manual testing starts instantly instead of re-learning the mission."""
+        self._learned.update(other._learned)
+        self._rule_states.update(other._rule_states)
+        self._band.update(other._band)
+        self._ai_cache.update(other._ai_cache)
+
     # ---------- continuous learning ----------
     def update_day(self, day):
         """The day the personal normal in use on `day` was last updated."""

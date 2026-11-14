@@ -7,11 +7,12 @@ Then open http://127.0.0.1:8000
 
 from pathlib import Path
 
-from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from engine import HealthMonitor, live, access
+from engine.manual import QuickCheck, Upload, template_csv
 
 app = FastAPI(
     title="Astronaut Health Monitor",
@@ -22,6 +23,8 @@ app = FastAPI(
 
 monitor = HealthMonitor()
 monitor.status(monitor.days[-1])  # learn every week of the mission once, at startup
+quick = QuickCheck(monitor)        # manual test: new days typed in by hand
+uploaded = Upload()                # manual test: a whole mission from a CSV file
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 
@@ -111,6 +114,58 @@ def live_in(reading: dict = Body(...)):
 def live_out():
     """Latest live camera reading with its state and reasons."""
     return live.latest()
+
+
+@app.get("/api/manual/defaults")
+def manual_defaults(aid: str = "A"):
+    """A real normal day of this astronaut, to start the manual form from."""
+    try:
+        return quick.defaults(aid)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/manual/day")
+def manual_day(body: dict = Body(...)):
+    """Add the next day with readings typed in by hand, and judge it."""
+    try:
+        return quick.add(body.get("aid", "A"), body.get("values", {}), body.get("cabin", {}))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/manual/reset")
+def manual_reset():
+    quick.reset()
+    return {"ok": True}
+
+
+@app.get("/api/manual/template.csv")
+def manual_template(full: int = 0):
+    return Response(template_csv(full=bool(full)), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=mission_template.csv"})
+
+
+@app.post("/api/manual/upload")
+async def manual_upload(request: Request):
+    """Upload a whole mission as CSV (see the template) and judge every day."""
+    body = await request.body()
+    if len(body) > 5_000_000:
+        raise HTTPException(413, "File too large (5 MB max)")
+    return uploaded.load(body.decode("utf-8-sig"))
+
+
+@app.get("/api/manual/upload/report/{aid}", response_class=PlainTextResponse)
+def manual_upload_report(aid: str, day: int, lang: str = Query("en", pattern="^(en|ar)$")):
+    try:
+        return uploaded.report(aid, day, lang)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/manual")
+def manual_page():
+    return FileResponse(FRONTEND / "manual.html")
 
 
 @app.get("/")

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual test - Astronaut Health Monitor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/manual.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Manual test</h1>
+      <p class="sub">Type your own readings, or upload a whole mission, and see exactly what the system decides</p>
+    </div>
+    <a class="navlink" href="/">&larr; Back to the mission dashboard</a>
+  </header>
+
+  <nav class="mtabs" role="tablist">
+    <button id="tabQuick" class="on" role="tab" type="button">1. Quick check (one day at a time)</button>
+    <button id="tabCsv" role="tab" type="button">2. Whole mission (CSV file)</button>
+  </nav>
+
+  <section id="quick" class="mpanel">
+    <p class="hint-box">Every astronaut already has a personal normal learned from the demo mission. Each
+      <b>Evaluate</b> adds the <b>next day</b> after day 125 for the astronaut you pick. The boxes start
+      with a real normal day of that astronaut: change them to test. <b>Leave a box empty</b> = the reading
+      is missing. Ideas: one bad day (WATCH), the same bad day twice (ACT needs 2 days), SpO2 below 92
+      (safety limit), wrist temperature 31 (sensor error), the same exact value 4 days running (frozen sensor),
+      a camera time under 30 min (fatigue from the wristband), CO2 above 4 (cabin).</p>
+    <div class="mgrid">
+      <form id="qform" class="mform">
+        <div class="row2">
+          <label>Astronaut <select id="qaid"></select></label>
+          <span class="role">Next day: <b id="qday">-</b></span>
+        </div>
+        <div id="qfields" class="fields"></div>
+        <h4>Cabin</h4>
+        <div class="fields">
+          <label>Cabin CO2 <span class="u">mmHg</span><input id="c_co2" type="number" step="any"></label>
+          <label>Radiation dose <span class="u">mSv/day</span><input id="c_rad" type="number" step="any"></label>
+        </div>
+        <div class="btns">
+          <button type="submit" class="primary">Evaluate this day</button>
+          <button type="button" id="qnormal">Fill a normal day</button>
+          <button type="button" id="qreset">Reset manual days</button>
+        </div>
+      </form>
+      <div class="mresult">
+        <div id="qhead"></div>
+        <div id="qhistory" class="history"></div>
+        <div class="lang" role="group">
+          <button id="qen" type="button" class="on">English</button>
+          <button id="qar" type="button" lang="ar">عربي</button>
+        </div>
+        <pre id="qreport" class="report-pre">Evaluate a day to see the decision and the full report here.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="csv" class="mpanel" hidden>
+    <p class="hint-box">One row per astronaut per day, days 1, 2, 3 ... with no gaps, at least 15 days (days
+      1-14 teach the system each person's normal). Use your own crew: any id, name and role. Empty cell = missing
+      reading. Open the template in Excel or Google Sheets, edit, save as CSV, and upload.</p>
+    <div class="btns">
+      <a class="button" href="/api/manual/template.csv">Download template (20 days)</a>
+      <a class="button" href="/api/manual/template.csv?full=1">Download the demo mission (125 days) to edit</a>
+      <label class="button primary">Upload CSV<input id="file" type="file" accept=".csv,text/csv" hidden></label>
+    </div>
+    <div id="csvmsg"></div>
+    <div id="csvgrid" class="cgrid"></div>
+    <div id="csvwide"></div>
+    <div class="lang" role="group">
+      <button id="cen" type="button" class="on">English</button>
+      <button id="car" type="button" lang="ar">عربي</button>
+    </div>
+    <pre id="creport" class="report-pre">Upload a mission, then click any day to read its report.</pre>
+  </section>
+
+  <footer>Decision support only. Prototype thresholds, not for medical decisions.</footer>
+  <script src="/static/manual.js"></script>
+</body>
+</html>

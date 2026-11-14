@@ -32,6 +32,11 @@ up to 20 minutes to reach Earth.
 | `docs/TEST_REPORT.md` | Every automated test and its result |
 | `docs/ARCHITECTURE.md` | The architecture diagram |
 
+## Manual test (branch `v2`)
+Open **http://127.0.0.1:8000/manual** (or click "Manual test" on the dashboard):
+* **Quick check:** type one astronaut's readings for the next day (after day 125) and see the decision and the full report at once. Add several days in a row to test streaks, leave a box empty to test a missing reading.
+* **Whole mission (CSV):** download the template, fill in your own crew and days (at least 15), upload, and see every day as a coloured grid; click a day for its report. Everything can be tested this way: swapped bands, crew-wide cabin events, slow drift, sensor faults.
+
 ## Run it
 You need Python 3.10 or newer.
 
