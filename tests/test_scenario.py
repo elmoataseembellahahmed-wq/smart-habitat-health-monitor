@@ -635,12 +635,12 @@ def test_message_to_the_flight_surgeon():
     """Impact/influence: a short, prioritised message for the next contact window."""
     msg = m.earth_message("B", 121)
     lines = msg.splitlines()
-    assert lines[0].startswith("NABD to flight surgeon | Ben") and lines[0].endswith("ACT")
+    assert lines[0].startswith("AEGIS to flight surgeon | Ben") and lines[0].endswith("ACT")
     assert lines[1].startswith("Findings: ") and "Request: Please review" in msg
     assert len(msg) < 900                                              # short enough for a delayed link
     assert "Data: 12/12 values" in msg
     ar = m.earth_message("B", 121, "ar")
-    assert ar.startswith("من نبض إلى طبيب الرحلة")
+    assert ar.startswith("من إيجيس إلى طبيب الرحلة")
     c = m.earth_message("C", 110)
     assert "body_temp 38.4" in c and "confirmed" in c
 

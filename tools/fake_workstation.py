@@ -1,4 +1,4 @@
-"""Act like the NABD workstation app, to test the ingestion layer without a real crew.
+"""Act like the AEGIS workstation app, to test the ingestion layer without a real crew.
 
 The real app measures typing, the mouse reaction test and webcam signals locally and
 sends only numbers. This script sends the same JSON, one sample a minute (faster with

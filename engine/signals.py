@@ -1,6 +1,6 @@
-"""Signal catalogue: every health indicator NABD uses. The astronaut enters them
+"""Signal catalogue: every health indicator AEGIS uses. The astronaut enters them
 himself (keyboard and mouse) from the onboard medical kit and a daily check-in, and the
-laptop webcam adds fatigue and blinking. NABD adds no wearables or other hardware.
+laptop webcam adds fatigue and blinking. AEGIS adds no wearables or other hardware.
 
 Each signal says:
   device       where the value comes from (see DEVICES)

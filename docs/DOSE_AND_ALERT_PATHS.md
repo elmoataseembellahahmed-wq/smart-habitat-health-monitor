@@ -41,6 +41,6 @@ Each decision now carries `alert_path`, `alert_path_note` and `immediate_alerts`
 
 ## Wording for the presentation
 
-> NABD keeps cabin radiation apart from each astronaut's personal cumulative dose. Each personal-dose record is linked to its source, its astronaut and device ID, its unit and its time. Simulated or manually entered values are clearly labelled.
+> AEGIS keeps cabin radiation apart from each astronaut's personal cumulative dose. Each personal-dose record is linked to its source, its astronaut and device ID, its unit and its time. Simulated or manually entered values are clearly labelled.
 >
-> NABD has two independent alert paths: one based on trends, for gradual deterioration, and one for immediate safety, for verified critical limit breaches. The 2-day rule applies only to gradual deterioration. Sensor quality is checked before any alert is classified.
+> AEGIS has two independent alert paths: one based on trends, for gradual deterioration, and one for immediate safety, for verified critical limit breaches. The 2-day rule applies only to gradual deterioration. Sensor quality is checked before any alert is classified.

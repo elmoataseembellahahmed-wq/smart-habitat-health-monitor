@@ -1,9 +1,9 @@
 """A short message to the flight surgeon, ready for the next contact window.
 
 From Mars a message takes up to 20 minutes each way (NASA HRP, Distance from Earth), so
-contact is precious. NABD writes one short, prioritised message per astronaut: status,
+contact is precious. AEGIS writes one short, prioritised message per astronaut: status,
 the most important findings with values, what was already done on board, and what the
-crew needs from the ground. It is sent by the crew; NABD sends nothing by itself.
+crew needs from the ground. It is sent by the crew; AEGIS sends nothing by itself.
 """
 
 from .signals import SIGNALS
@@ -22,9 +22,9 @@ def message(member, day, decision, done_tasks=None, selfchecks=None, lang="en"):
     name = member["name"]
     lines = []
     if en:
-        lines.append(f"NABD to flight surgeon | {name} ({member['role']}) | mission day {day} | {decision['state']}")
+        lines.append(f"AEGIS to flight surgeon | {name} ({member['role']}) | mission day {day} | {decision['state']}")
     else:
-        lines.append(f"من نبض إلى طبيب الرحلة | {name} | يوم المهمة {day} | {STATE_AR[decision['state']]}")
+        lines.append(f"من إيجيس إلى طبيب الرحلة | {name} | يوم المهمة {day} | {STATE_AR[decision['state']]}")
     # 1. Most important first: immediate alerts, then flags by severity.
     top = []
     for a in decision.get("immediate_alerts") or []:

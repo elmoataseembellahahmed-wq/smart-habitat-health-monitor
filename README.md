@@ -1,14 +1,14 @@
-# NABD: Smart Habitat Health Monitor
+# AEGIS: Smart Habitat Health Monitor
 
 NASA Space Apps Challenge 2026: *Create Health Monitoring Software for Astronauts on Space Missions*
 
-NABD helps an astronaut **assess his own health and act on it**, with no wearables and no
+AEGIS helps an astronaut **assess his own health and act on it**, with no wearables and no
 added hardware. Each morning the astronaut **types in** a few measurements taken with the
 standard onboard medical kit (pulse, blood oxygen, temperature, breathing, blood pressure,
 blood sugar) and a short **check-in** (sleep, mood, symptoms), using the keyboard and mouse.
 The laptop **webcam** adds fatigue and blinking while he works.
 
-NABD compares every value with that astronaut's **own normal**, gives one status
+AEGIS compares every value with that astronaut's **own normal**, gives one status
 (**NORMAL / WATCH / ACT**), double-checks it with an **AI anomaly model**, and tells him
 **what it means, what to do now, how to prevent it, and when to call the flight surgeon**,
 on a clickable body figure and in a daily report in **English or Arabic**. It runs fully
@@ -18,7 +18,7 @@ offline, because a message from Mars can take up to 20 minutes to reach Earth.
 1. **One colour per day:** green NORMAL, amber WATCH, red ACT, on his card and on each body system.
 2. **What changed:** the signals that moved away from *his* normal, each with a plain reason ("blood pressure 138, 15% above your normal of 120, for 3 days").
 3. **How sure:** how many values today's status is based on, and which are missing.
-4. **Guidance:** for each finding, a card with *what it means*, *do now*, *improve and prevent*, and *call the flight surgeon if*, linked to the NASA Human Research Program page it comes from. NABD never names a medicine or a dose: medicines only by the flight surgeon's instruction.
+4. **Guidance:** for each finding, a card with *what it means*, *do now*, *improve and prevent*, and *call the flight surgeon if*, linked to the NASA Human Research Program page it comes from. AEGIS never names a medicine or a dose: medicines only by the flight surgeon's instruction.
 5. **When to escalate:** ACT tells him to contact the flight surgeon; a severe symptom or a confirmed safety-limit value means ACT at once.
 6. **Body self-check:** he clicks the body part where he feels something, ticks the symptoms and their strength, and gets an answer at once.
 7. **Today's tasks:** the routine plus the guidance steps, ticked off for points and a streak.
@@ -41,12 +41,12 @@ offline, because a message from Mars can take up to 20 minutes to reach Earth.
 * **Immediate safety:** a typed value past a safety limit (blood oxygen below 92%, temperature 38.0 °C or more, blood pressure above 180/120, blood sugar below 54 or above 250, heart rate below 40 or above 130, breathing above 30), cabin CO2 above its ACT limit, or a severe symptom: **ACT the same day**.
 * **Slow deterioration:** change against the personal normal. One bad day gives WATCH; ACT needs the change to last 2 or more days. This keeps false alarms low.
 * **Entry checks first:** a skipped value, a value copied for 4 days, or a typo (3.67 °C instead of 36.7) is marked "unavailable" and the astronaut is asked to re-enter it. It never becomes a health alarm.
-* **Profile mix-up check:** if two astronauts save their values in each other's profile, each profile suddenly matches the other person's normal. NABD sets that day aside and asks them to check, with no health alarm.
+* **Profile mix-up check:** if two astronauts save their values in each other's profile, each profile suddenly matches the other person's normal. AEGIS sets that day aside and asks them to check, with no health alarm.
 
 ## Results
 **Independent evaluation on 20 new simulated missions** (`tools/evaluate.py`, seeds 1000-1019, data the system never saw):
 
-| Measure | NABD | Fixed limits for everyone |
+| Measure | AEGIS | Fixed limits for everyone |
 |---|---|---|
 | Gradual declines found | 26 of 26 (median 3 days) | 20 of 26 (median 9.5 days) |
 | False ACT per 100 healthy days | 0 | n/a |
@@ -91,7 +91,7 @@ Tests: `python tests/test_scenario.py`. Evaluation: `python tools/evaluate.py`.
 ## Documentation
 | Document | What it answers |
 |---|---|
-| `docs/JUDGING_CRITERIA.md` | How NABD meets impact, validity, creativity, relevance and influence |
+| `docs/JUDGING_CRITERIA.md` | How AEGIS meets impact, validity, creativity, relevance and influence |
 | `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope |
 | `docs/THRESHOLDS.md` | Every threshold, with its source or "project assumption" |
 | `docs/RULES.md` | The rule catalogue and decision flow |
@@ -107,7 +107,7 @@ Tests: `python tests/test_scenario.py`. Evaluation: `python tools/evaluate.py`.
 * The demo data is simulated: day-by-day astronaut data is not public. The webcam input is real.
 * The morning measurements take about 5 minutes of the astronaut's time.
 * Some thresholds are project assumptions, not clinically validated (`docs/THRESHOLDS.md`).
-* NABD supports the astronaut and the flight surgeon; it does not diagnose and never prescribes.
+* AEGIS supports the astronaut and the flight surgeon; it does not diagnose and never prescribes.
 
 ## License
 MIT. See [LICENSE](LICENSE).

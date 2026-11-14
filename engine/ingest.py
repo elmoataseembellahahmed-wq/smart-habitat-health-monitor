@@ -1,6 +1,6 @@
 """Data ingestion layer for the workstation app (webcam, keyboard and mouse measurements).
 
-The NABD app on each crew workstation measures typing, the mouse reaction test and the
+The AEGIS app on each crew workstation measures typing, the mouse reaction test and the
 webcam signals locally (only numbers leave the app: never video, never the text typed)
 and sends samples here. Every sample carries the workstation ID and its own timestamp.
 Before any reading can be used, this layer:

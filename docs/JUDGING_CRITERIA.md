@@ -1,4 +1,4 @@
-# How NABD meets the judging criteria
+# How AEGIS meets the judging criteria
 
 Each criterion is built into the software, not only described. For each one: the feature, where it is, and the test that proves it works.
 
@@ -11,7 +11,7 @@ Each criterion is built into the software, not only described. For each one: the
 | Influence | Message ready for a 20-minute communication delay; Arabic and English; open, offline, one command to run | `engine/earth.py`, `engine/arabic.py` | test `message_to_the_flight_surgeon` |
 
 ## 1. Impact: what effect does the project make?
-**The effect.** NABD changes what an astronaut can do alone, far from Earth: he knows his status every day, he finds a problem days earlier, and he knows what to do about it before the flight surgeon can answer. On a Mars mission the crew is up to 20 minutes from Earth one way, and NASA notes that astronauts "must be capable of confronting an array of situations with minimal support from teams on Earth" (HRP, Distance from Earth).
+**The effect.** AEGIS changes what an astronaut can do alone, far from Earth: he knows his status every day, he finds a problem days earlier, and he knows what to do about it before the flight surgeon can answer. On a Mars mission the crew is up to 20 minutes from Earth one way, and NASA notes that astronauts "must be capable of confronting an array of situations with minimal support from teams on Earth" (HRP, Distance from Earth).
 
 **Evidence.**
 * Finds gradual declines early: 26 of 26 on 20 new simulated missions, median 3 days, against 20 of 26 and 9.5 days for fixed limits (`docs/evaluation_results.json`).
@@ -34,10 +34,10 @@ Each criterion is built into the software, not only described. For each one: the
 * 44 automated tests, plus an independent evaluation on missions the system never saw.
 * Limits stated openly: simulated data, not clinically validated, no diagnosis, no medicines.
 
-## 3. Creativity: what makes NABD different from other projects?
-A typical health dashboard shows numbers against one fixed range for everybody, and stops there. NABD is different in six ways:
+## 3. Creativity: what makes AEGIS different from other projects?
+A typical health dashboard shows numbers against one fixed range for everybody, and stops there. AEGIS is different in six ways:
 
-| A typical health dashboard | NABD |
+| A typical health dashboard | AEGIS |
 |---|---|
 | One fixed range for everyone | **A personal normal for every astronaut**, re-learned weekly from healthy days only, with a fixed anchor from days 1-14 that catches a decline too slow to show on any single day |
 | One reading is the truth | **A value past a safety limit is re-measured before it counts**; an evening or "feeling unwell" reading counts too |
@@ -49,7 +49,7 @@ A typical health dashboard shows numbers against one fixed range for everybody, 
 It is also **bilingual by design**: the Arabic report is built from the same computed results, not translated text.
 
 ## 4. Relevance: does it answer this challenge?
-| The challenge asks for | NABD |
+| The challenge asks for | AEGIS |
 |---|---|
 | A visual tool that helps astronauts assess their own health | Dashboard with one status per day, colour coding, body figure with a click-where-it-hurts self-check, charts over time |
 | Guidance on treatments and health improvements | Guidance card for every finding, linked to NASA HRP pages, no medicines or doses |
@@ -63,7 +63,7 @@ It is also **bilingual by design**: the Arabic report is built from the same com
 | A human figure where each part is clickable | Each body system shows its function, the space effect, today's values, and a symptom self-check |
 
 ## 5. Influence: how far does its effect reach?
-* **Built for the communication delay:** the message to the flight surgeon is short and prioritised, so one contact window is enough; the crew sends it, NABD sends nothing by itself.
+* **Built for the communication delay:** the message to the flight surgeon is short and prioritised, so one contact window is enough; the crew sends it, AEGIS sends nothing by itself.
 * **Beyond Mars:** the same tool fits a space station, a rover or a lunar base. It also fits isolated places on Earth (Antarctic stations, ships, remote clinics), where the nearest doctor is also far away.
 * **Open and easy to run:** MIT licence, Python standard library only, one command to start.
 * **Built to be checked by experts:** thresholds are simple settings that flight surgeons can calibrate with real data, and every decision is versioned.

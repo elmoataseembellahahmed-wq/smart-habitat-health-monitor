@@ -1,4 +1,4 @@
-# Status of the "NABD Modifications and Development Plan"
+# Status of the "AEGIS Modifications and Development Plan"
 
 What the plan asked for, and what is in the code now (branch `v2`). "Done" means implemented and tested; "Roadmap" means it needs hardware, real data or clinical review.
 

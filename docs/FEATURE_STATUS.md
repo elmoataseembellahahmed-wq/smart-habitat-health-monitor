@@ -38,7 +38,7 @@ Four labels, used the same way in the README, the slides and the dashboard:
 
 ## Inputs (no wearables or added hardware)
 
-NABD adds no hardware. The astronaut enters the values himself with the keyboard and mouse, and the laptop webcam adds fatigue.
+AEGIS adds no hardware. The astronaut enters the values himself with the keyboard and mouse, and the laptop webcam adds fatigue.
 
 | Input | Signals | Status | Open question |
 |---|---|---|---|

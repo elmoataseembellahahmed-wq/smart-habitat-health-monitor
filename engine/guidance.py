@@ -1,7 +1,7 @@
 """Guidance on treatment and health improvement, for the astronaut.
 
 The challenge asks for a tool that "provides guidance on treatments and health
-improvements". For every finding NABD gives one card, in English and Arabic:
+improvements". For every finding AEGIS gives one card, in English and Arabic:
 
   means        what the finding means, in plain words
   do_now       first steps the astronaut can take right away (self-care, re-measure)
@@ -11,7 +11,7 @@ improvements". For every finding NABD gives one card, in English and Arabic:
   source       the NASA HRP page it is based on (from the challenge's Resources tab)
 
 Safety boundaries, on purpose:
-  * NABD never names a medicine or a dose. Medicines are given only by the flight
+  * AEGIS never names a medicine or a dose. Medicines are given only by the flight
     surgeon's instruction and the mission's approved medical procedures.
   * Every card says when to stop self-care and call for help.
   * The text is general guidance written from the NASA HRP pages, not a diagnosis.
@@ -28,9 +28,9 @@ SRC = {
 }
 
 MEDICINE_NOTE = ("Medicines: only as instructed by the flight surgeon, following the mission's approved "
-                 "medical procedures. NABD never suggests a medicine or a dose.")
+                 "medical procedures. AEGIS never suggests a medicine or a dose.")
 MEDICINE_NOTE_AR = ("الأدوية: فقط بتعليمات طبيب الرحلة ووفق إجراءات المهمة الطبية المعتمدة. "
-                    "نبض لا يقترح أي دواء أو جرعة أبدًا.")
+                    "إيجيس لا يقترح أي دواء أو جرعة أبدًا.")
 
 # One card per pattern (fusion.PATTERNS) and per single signal when no pattern fired.
 CARDS = {
