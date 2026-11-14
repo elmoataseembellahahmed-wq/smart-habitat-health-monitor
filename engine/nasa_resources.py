@@ -38,17 +38,16 @@ CANCER = "Risk of Radiation-Induced Cancers"
 SUPPORT = "Risk of Inadequate Systems Operations Support"
 
 RISK_BY_SIGNAL = {
-    "heart_rate": [CARDIO], "breathing_rate": [HYPOXIA],
+    "heart_rate": [CARDIO], "bp_systolic": [CARDIO], "bp_diastolic": [CARDIO],
+    "spo2": [HYPOXIA], "breathing_rate": [HYPOXIA], "body_temp": [IMMUNE, MICROBES],
     "sleep_hours": [SLEEP], "fatigue_score": [SLEEP], "blink_rate": [SLEEP],
-    "typing_speed": [SLEEP, BEHAVIOR], "typing_errors": [SLEEP, BEHAVIOR],
-    "reaction_time": [SLEEP, BEHAVIOR], "mouse_tremor": [SLEEP],
-    "mood_score": [BEHAVIOR], "stress_words": [BEHAVIOR],
+    "mood_score": [BEHAVIOR], "stress_words": [BEHAVIOR], "glucose": [NUTRITION],
     "exercise": [FITNESS, BONE], "radiation": [CANCER],
 }
 
 RISK_BY_PATTERN = {
     "stress_fatigue": [BEHAVIOR, SLEEP, CARDIO], "sleep_debt": [SLEEP], "mental_strain": [BEHAVIOR],
-    "fast_breathing": [HYPOXIA], "slowed_reactions": [SLEEP, BEHAVIOR], "unsteady_hand": [SLEEP],
+    "low_oxygen": [HYPOXIA], "high_bp": [CARDIO], "glucose": [NUTRITION], "fever": [IMMUNE, MICROBES],
     "cabin_air": [HYPOXIA],
 }
 

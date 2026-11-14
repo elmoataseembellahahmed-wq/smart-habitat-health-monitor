@@ -5,10 +5,10 @@ day_from,day_to,astronaut,event,label
 60,60,A,camera_gap,face in view 5 min
 61,61,A,camera_gap,face in view 0 min
 122,122,B,camera_gap,face in view 15 min
-50,50,A+C,wristband_swap,bands swapped by mistake
-40,41,A,sensor_fault,spo2: missing
-30,35,C,sensor_fault,glucose: stuck
-35,35,B,sensor_fault,body_temp: 31.2
+50,50,A+C,profile_mix_up,measurements saved in each other's profile
+40,41,A,entry_error,spo2: missing
+30,35,C,entry_error,glucose: stuck
+35,35,B,entry_error,body_temp: 3.67
 55,55,A,diary_skipped,optional diary not filled in
 56,56,C,diary_skipped,optional diary not filled in
 57,57,C,diary_skipped,optional diary not filled in

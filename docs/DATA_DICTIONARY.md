@@ -1,23 +1,21 @@
 # Data dictionary
 
-Generated from the code by `tools/make_docs.py` (software 1.4.0). **13 health signals** from **6 personal devices**, plus **2 cabin signals**, plus 2 support fields (camera minutes, exercise minutes) and 1 derived backup (wristband fatigue).
+Generated from the code by `tools/make_docs.py` (software 1.4.0). **13 health signals** from **6 personal devices**, plus **2 cabin signals**, plus 2 support fields (camera minutes, exercise minutes).
 
-| # | Field | Name | Unit | Device | Raw / derived | Required / optional | Unhealthy direction | Plausible range (else sensor error) | Safety limit | Input status |
+| # | Field | Name | Unit | Device | Raw / derived | Required / optional | Unhealthy direction | Plausible range (else entry error) | Safety limit | Input status |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `heart_rate` | Resting heart rate | bpm | Wristband | raw (daily value) | required | high | 25-220 | - | Simulated |
-| 2 | `hrv` | Heart rate variability | ms | Wristband | raw (daily value) | required | low | 3-250 | - | Simulated |
-| 3 | `spo2` | Blood oxygen | % | Wristband | raw (daily value) | required | low | 60-100 | < 92 | Simulated |
-| 4 | `body_temp` | Wrist skin temperature (body temperature estimate) | °C | Wristband | raw (daily value) | required | high | 34-42 | > 38 (estimate: confirm first) | Simulated |
-| 5 | `sleep_hours` | Sleep duration | h | Wristband | raw (daily value) | required | low | 0-16 | - | Simulated |
-| 6 | `breathing_rate` | Breathing rate | /min | Chest strap | raw (daily value) | required | high | 4-60 | - | Simulated |
-| 7 | `bp_systolic` | Blood pressure, systolic | mmHg | Cuffless blood pressure sensor | raw (daily value) | required | high | 60-260 | > 180 | Simulated |
-| 8 | `bp_diastolic` | Blood pressure, diastolic | mmHg | Cuffless blood pressure sensor | raw (daily value) | required | high | 30-160 | > 120 | Simulated |
-| 9 | `glucose` | Blood sugar (daily average) | mg/dL | Glucose patch | raw (daily value) | required | both | 20-600 | < 54, > 250 | Simulated |
-| 10 | `fatigue_score` | Fatigue score (cameras) | /100 | Cabin cameras (work areas) | raw (daily value) | required | high | 0-100 | - | Real (webcam) in live mode; simulated daily values in the mission |
-| 11 | `blink_rate` | Blink rate (cameras) | /min | Cabin cameras (work areas) | raw (daily value) | required | high | 0-80 | - | Real (webcam) in live mode; simulated daily values in the mission |
-| - | `wrist_fatigue` | Fatigue estimate (wristband) | /100 | Wristband | derived backup | backup only | high |  | - | Simulated |
-| 12 | `mood_score` | Mood score (self-report) | /100 | Voice and daily log (optional) | raw (daily value) | optional self-report | low | 0-100 | - | Simulated |
-| 13 | `stress_words` | Stress words in daily log | /day | Voice and daily log (optional) | raw (daily value) | optional self-report | high | 0-200 | - | Simulated |
+| 1 | `heart_rate` | Resting heart rate | bpm | Typed measurement (onboard medical kit) | raw (daily value) | required | high | 25-220 | < 40, > 130 | Simulated |
+| 2 | `spo2` | Blood oxygen | % | Typed measurement (onboard medical kit) | raw (daily value) | required | low | 60-100 | < 92 | Simulated |
+| 3 | `body_temp` | Body temperature | °C | Typed measurement (onboard medical kit) | raw (daily value) | required | high | 34-42 | > 38 | Simulated |
+| 4 | `breathing_rate` | Breathing rate | /min | Typed measurement (onboard medical kit) | raw (daily value) | required | high | 4-60 | > 30 | Simulated |
+| 5 | `bp_systolic` | Blood pressure, systolic | mmHg | Typed measurement (onboard medical kit) | raw (daily value) | required | high | 60-260 | > 180 | Simulated |
+| 6 | `bp_diastolic` | Blood pressure, diastolic | mmHg | Typed measurement (onboard medical kit) | raw (daily value) | required | high | 30-160 | > 120 | Simulated |
+| 7 | `glucose` | Blood sugar (morning) | mg/dL | Typed measurement (onboard medical kit) | raw (daily value) | required | both | 20-600 | < 54, > 250 | Simulated |
+| 8 | `sleep_hours` | Sleep duration | h | Daily check-in (keyboard and mouse) | raw (daily value) | required | low | 0-16 | - | Simulated |
+| 9 | `mood_score` | Mood score (self-report) | /100 | Daily check-in (keyboard and mouse) | raw (daily value) | optional self-report | low | 0-100 | - | Simulated |
+| 10 | `stress_words` | Stress words in daily log | /day | Daily check-in (keyboard and mouse) | raw (daily value) | optional self-report | high | 0-200 | - | Simulated |
+| 11 | `fatigue_score` | Fatigue score (camera) | /100 | Laptop webcam | raw (daily value) | required | high | 0-100 | - | Real (webcam) in live mode; simulated daily values in the mission |
+| 12 | `blink_rate` | Blink rate (camera) | /min | Laptop webcam | raw (daily value) | required | high | 0-80 | - | Real (webcam) in live mode; simulated daily values in the mission |
 
 ## Cabin signals
 
@@ -32,9 +30,8 @@ Generated from the code by `tools/make_docs.py` (software 1.4.0). **13 health si
 
 | Field | Meaning | Use |
 |---|---|---|
-| `camera_minutes` | Minutes the cabin cameras saw this face today | < 30 min: camera values not trusted, fatigue estimated from the wristband |
+| `camera_minutes` | Minutes the laptop webcam saw this face today | < 30 min: camera values not measured (said plainly) |
 | `exercise_minutes` | Minutes of exercise in the exercise log | Exercise adherence (bones and muscles). Not a bone measurement |
-| `wrist_fatigue` | Fatigue estimate from sleep, HRV and heart rate | Backup when the camera saw too little |
 
 ## Time model
 

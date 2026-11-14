@@ -12,21 +12,22 @@ from .fusion import fuse, GENERAL_ACTIONS
 from .report import build_report
 from .arabic import build_report_ar
 from .reminders import reminders, normal_streak
-from .integrity import session_swap, drift, SESSION_SIGNALS
+from .integrity import profile_swap, drift, ENTRY_SIGNALS
 from . import quality
 from . import version
 from . import access
 from .nasa_resources import risks_for
 from . import clinical as clin
+from . import guidance
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
-                      WORKSTATION_SIGNALS, MIN_WORKSTATION_MINUTES)
+                      CAMERA_SIGNALS, MIN_CAMERA_MINUTES)
 
 TREND_DAYS = 5
 LEARN_EVERY = 7    # the personal normal (and the AI model) is updated once a week...
 LEARN_WINDOW = 30  # ...from the last 30 days that this astronaut was in NORMAL
 MIN_LEARN_DAYS = 7  # fewer usable days than this: keep the previous week's normal
 
-SESSION_ACTION = "Check that you are logged in to the workstation as yourself, then log out and back in if needed."
+PROFILE_ACTION = "Check that today's measurements were saved in your own profile, then re-enter them if needed."
 DRIFT_ACTION = ("Flight surgeon: review the slow change in this astronaut's normal since the start "
                 "of the mission (it is too gradual to show on any single day).")
 
@@ -46,7 +47,7 @@ class HealthMonitor:
         self.day_status = {}
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
-        # Input quality first: faulty readings are kept aside and never analysed.
+        # Sensor quality first: faulty readings are kept aside and never analysed.
         self.faults = quality.scan(self.data["crew"])
         self.raw_values = {}
         for (aid, day), issues in self.faults.items():
@@ -66,7 +67,7 @@ class HealthMonitor:
         self._ai_cache = {}
         self._learned = {}      # update day -> per-astronaut baseline and AI model
         self._rule_states = {}  # (aid, day) -> rule-based state, used to pick learning days
-        self._session = {}      # (aid, day) -> workstation session swap check result
+        self._profile = {}      # (aid, day) -> profile mix-up check result
 
     # ---------- adding data (manual entry, or a live feed) ----------
     def add_day(self, day, readings, cabin, data_status="manually entered"):
@@ -94,7 +95,7 @@ class HealthMonitor:
         copy for manual testing starts instantly instead of re-learning the mission."""
         self._learned.update(other._learned)
         self._rule_states.update(other._rule_states)
-        self._session.update(other._session)
+        self._profile.update(other._profile)
         self._ai_cache.update(other._ai_cache)
 
     # ---------- continuous learning ----------
@@ -111,7 +112,7 @@ class HealthMonitor:
         if u == max(self.baseline_days) + 1:
             return list(self.baseline_days)
         window = [d for d in range(u - LEARN_WINDOW, u) if d in self.data["crew"][aid]]
-        days = [d for d in window if not self.session_check(aid, d) and not self.symptoms(aid, d)
+        days = [d for d in window if not self.profile_check(aid, d) and not self.symptoms(aid, d)
                 and (d in self.baseline_days or self._rule_state(aid, d) == "NORMAL")]
         if len(days) < MIN_LEARN_DAYS:
             return self.learning_days(aid, u - 1)   # too few healthy days: keep last week's normal
@@ -135,28 +136,28 @@ class HealthMonitor:
         reported = self.data["crew"][aid][day].get("symptoms") or []
         return [s for s in reported if s in clin.SEVERE_SYMPTOMS]
 
-    def session_check(self, aid, day):
-        """Swap check: does this astronaut's workstation session read like another astronaut's normal?"""
+    def profile_check(self, aid, day):
+        """Mix-up check: does this astronaut's profile read like another astronaut's normal today?"""
         key = (aid, day)
-        if key not in self._session:
-            self._session[key] = None   # placeholder while computing
+        if key not in self._profile:
+            self._profile[key] = None   # placeholder while computing
             if day in self.baseline_days:
                 res = None           # the normal is still being learned: nothing to compare with
             else:
-                res = session_swap(aid, day, self.data["crew"], self.baseline_for,
+                res = profile_swap(aid, day, self.data["crew"], self.baseline_for,
                                    [m["id"] for m in self.crew])
-            self._session[key] = res
-        return self._session[key]
+            self._profile[key] = res
+        return self._profile[key]
 
-    def workstation_used(self, aid, day):
-        return self.data["crew"][aid][day].get("workstation_minutes", 999) >= MIN_WORKSTATION_MINUTES
+    def camera_seen(self, aid, day):
+        return self.data["crew"][aid][day].get("camera_minutes", 999) >= MIN_CAMERA_MINUTES
 
     def _signals(self, aid, day, base):
-        """Layer 2 for every signal. If the astronaut barely used the workstation today (for
-        example during a spacewalk), the webcam, keyboard and mouse readings are not trusted."""
+        """Layer 2 for every signal. If the webcam saw too little of this astronaut today,
+        the camera values are 'not measured', said plainly, never guessed."""
         days = self.data["crew"][aid]
-        used = self.workstation_used(aid, day)
-        swap = self.session_check(aid, day)
+        seen = self.camera_seen(aid, day)
+        swap = self.profile_check(aid, day)
         issues = self.faults.get((aid, day), {})
         out = []
         for k in CORE_SIGNALS:
@@ -164,16 +165,15 @@ class HealthMonitor:
                 entry = self._not_trusted(k, base, issues[k]["message"])
                 entry.update(untrusted=False, fault=issues[k]["code"])
                 out.append(entry)
-            elif k in WORKSTATION_SIGNALS and not used:
-                minutes = days[day].get("workstation_minutes", 0)
-                entry = self._not_trusted(k, base, f"The astronaut used the workstation for only {minutes} min "
-                                          f"today (at least {MIN_WORKSTATION_MINUTES} min needed), so this was "
-                                          "not measured.")
-                entry.update(untrusted=False, workstation_minutes=minutes)
+            elif swap and k in ENTRY_SIGNALS:
+                out.append(self._not_trusted(k, base, f"Today's measurements seem to belong to another astronaut, "
+                                             f"so the {SIGNALS[k]['name'].lower()} value was not used."))
+            elif k in CAMERA_SIGNALS and not seen:
+                minutes = days[day].get("camera_minutes", 0)
+                entry = self._not_trusted(k, base, f"The webcam saw this astronaut for only {minutes} min today "
+                                          f"(at least {MIN_CAMERA_MINUTES} min needed), so this was not measured.")
+                entry.update(untrusted=False, camera_minutes=minutes)
                 out.append(entry)
-            elif swap and k in SESSION_SIGNALS:
-                out.append(self._not_trusted(k, base, f"Someone else seems to have used this astronaut's login "
-                                             f"today, so the {SIGNALS[k]['name'].lower()} reading was not used."))
             else:
                 out.append(analyse_signal(k, day, days, base))
         return out
@@ -240,6 +240,8 @@ class HealthMonitor:
                                 "personal_normal": f"{aid}-day{self.update_day(day)}",
                                 "learned_from_days": [min(learned), max(learned), len(learned)]}
         decision["ai"] = self.ai(aid, day, decision)
+        decision["guidance"] = guidance.for_decision(decision)
+        decision["guidance_ar"] = guidance.for_decision(decision, "ar")
         decision["systems"] = body_systems(signals, cabin, self.exercise(aid, day),
                                            {d: self.clinical.for_domain(aid, d, day) for d in ("bones", "immune")})
         return decision
@@ -267,12 +269,10 @@ class HealthMonitor:
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
                                "trigger": s["signal"], "value": s.get("value"), "unit": s.get("unit"),
                                "limit_rule": "absolute safety limit (engine/signals.py, docs/THRESHOLDS.md)",
-                               "source": SIGNALS[s["signal"]]["device"] and DEVICES[SIGNALS[s["signal"]]["device"]]["name"],
+                               "source": DEVICES[SIGNALS[s["signal"]]["device"]]["name"],
                                "data_status": self.status_of(day),
-                               "why_trusted": "reading passed the quality check (own login, in range, "
-                                              "not stuck, not missing)"
-                                              + ("; it is an estimate, so confirm it by hand"
-                                                 if SIGNALS[s["signal"]].get("confirm_first") else "")})
+                               "why_trusted": "value passed the entry check (own profile, physically "
+                                              "possible, not copied, not missing)"})
         for c in decision["cabin"]:
             if c.get("level") == "act":
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
@@ -307,19 +307,19 @@ class HealthMonitor:
             None: None}[path]
 
     def _integrity(self, aid, day, decision):
-        """Add the workstation session swap check and the slow-drift check to a day's decision."""
-        swap = self.session_check(aid, day)
-        decision["session_check"] = None
+        """Add the profile mix-up check and the slow-drift check to a day's decision."""
+        swap = self.profile_check(aid, day)
+        decision["profile_check"] = None
         if swap:
             other = self.member(swap["with"])
-            decision["session_check"] = {
+            decision["profile_check"] = {
                 "with": swap["with"], "with_name": other["name"],
-                "message": (f"Today's workstation readings (typing, reaction time, webcam) match "
-                            f"{other['name']}'s normal, and {other['name']}'s session matches this "
-                            "astronaut's. They probably used each other's login. No health alarm is "
-                            "raised from it: the workstation readings were set aside for today."),
+                "message": (f"Today's measurements in this profile match {other['name']}'s normal, and "
+                            f"{other['name']}'s match this astronaut's. They were probably saved in each "
+                            "other's profile. No health alarm is raised from them: the measurements were "
+                            "set aside for today."),
             }
-            decision["actions"] = [SESSION_ACTION] + [a for a in decision["actions"]
+            decision["actions"] = [PROFILE_ACTION] + [a for a in decision["actions"]
                                                       if a != "No action needed. Keep the normal schedule."]
         drifted = drift(self.baselines[aid], self.baseline_for(aid, day)) if day not in self.baseline_days else []
         decision["drift"] = drifted
@@ -340,9 +340,13 @@ class HealthMonitor:
         if key not in self._ai_cache:
             learned = self._learned_for(aid, day)
             reading = dict(self.data["crew"][aid][day])
-            if not self.workstation_used(aid, day) or self.session_check(aid, day):
-                # Workstation values not measured, or they belong to someone else: neutral values.
-                for k in WORKSTATION_SIGNALS:
+            if not self.camera_seen(aid, day):
+                # Camera values weren't measured: give the model a neutral value for them.
+                for k in CAMERA_SIGNALS:
+                    reading[k] = learned["baseline"][k]["mean"]
+            if self.profile_check(aid, day):
+                # Mixed-up profile: the values belong to someone else, so they are neutralised too.
+                for k in ENTRY_SIGNALS:
                     reading[k] = learned["baseline"][k]["mean"]
             for k in CORE_SIGNALS:
                 if reading.get(k) is None:     # unavailable reading: neutral value for the model
@@ -439,8 +443,7 @@ class HealthMonitor:
 
 
 # Signals that cabin CO2 can change in everyone (faster breathing, fatigue, headache-related).
-CO2_SENSITIVE = {"breathing_rate", "heart_rate", "fatigue_score", "blink_rate", "sleep_hours", "reaction_time",
-                 "typing_speed", "typing_errors"}
+CO2_SENSITIVE = {"breathing_rate", "heart_rate", "fatigue_score", "blink_rate", "spo2", "sleep_hours"}
 
 
 def crew_wide(crew, cabin):

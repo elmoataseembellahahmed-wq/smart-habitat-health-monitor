@@ -210,3 +210,10 @@ pre[dir="rtl"] { text-align: right; font-family: "Segoe UI", Tahoma, "Noto Naskh
 }
 
 footer { color: var(--muted); font-size: 12px; padding: 0 28px 28px; }
+
+.guide { border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid var(--watch); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 14px; }
+.guide ul { margin: 4px 0 8px; padding-inline-start: 20px; }
+.guide p { margin: 4px 0 8px; }
+.guide-h { margin-bottom: 6px; }
+.guide-call { color: var(--act, #f87171); }
+.guide a { color: #7cc4ff; }

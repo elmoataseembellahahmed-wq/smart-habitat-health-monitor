@@ -19,7 +19,7 @@ Version: `thresholds-r3` (see `engine/version.py`). Each daily report prints the
 | Baseline window | days 1-14 | Project assumption | Two weeks covers work and rest days; needs real-data justification |
 | Re-learning | every 7 days, last 30 NORMAL days, at least 7 usable days | Project assumption | Follows adaptation to space without learning bad days |
 | Slow-drift anchor | current normal 1.5 anchor SD from days 1-14 | Project assumption | Never fires on the demo data; catches a slow test decline by day 71 |
-| Wristband swap | swapped fit at most 0.5 of the "as labelled" fit, and at least 12 better (sum of squared z) | Project assumption | Zero false swaps on all demo days |
+| Profile mix-up | swapped fit at most 0.5 of the "as labelled" fit, and at least 12 better (sum of squared z) | Project assumption | Zero false swaps on all demo days |
 | Frozen sensor | 4 identical daily values in a row | Project assumption | Zero false "stuck" readings on the demo data |
 | Camera trusted | 30+ minutes of face time in a day | Project assumption | Too little face time gives unreliable daily eye measures |
 
@@ -31,7 +31,7 @@ Version: `thresholds-r3` (see `engine/version.py`). Each daily report prints the
 | WATCH | score 3+, or a known risk pattern | Project assumption |
 | ACT | safety limit broken; or score 8+ with a signal off 2+ days; or combined stress 3+ days; or cabin CO2 at the ACT limit | Project assumption |
 
-On 20 new evaluation missions these gave 0.56 false WATCH and 0 false ACT per 100 healthy astronaut-days (`docs/MODEL_CARD.md`). That supports them as starting values only.
+On 20 new evaluation missions these gave 0.69 false WATCH and 0 false ACT per 100 healthy astronaut-days (`docs/MODEL_CARD.md`). That supports them as starting values only.
 
 ## Absolute safety limits
 

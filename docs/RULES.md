@@ -7,8 +7,8 @@ Version `rules-r4`. Every rule below is in the code, and every rule that fires i
 ```
 readings
   -> 1. quality check      missing / impossible / frozen -> "unavailable" + sensor check (no health meaning)
-  -> 2. integrity checks   wristband swap -> wristband set aside + "check your band" (no health alarm)
-                           camera < 30 min -> fatigue from the wristband, blink "not seen"
+  -> 2. integrity checks   profile mix-up -> typed values set aside + "check your profile" (no health alarm)
+                           camera < 30 min -> fatigue and blink "not measured" (said plainly)
   -> 3. per-signal check   distance from the personal normal (SD), days in a row, absolute safety limits
   -> 4. fusion             points -> score; risk patterns; NORMAL / WATCH / ACT
   -> 5. slow drift         current normal far from the day 1-14 anchor -> at least WATCH + flight-surgeon review
@@ -56,8 +56,8 @@ readings
 | Reading missing, impossible or frozen | Not scored, not learned, AI gets a neutral value; "sensor check" with a device action; coverage drops |
 | A safety-limit signal is unavailable | Coverage says "Normal cannot rule out a problem in it" |
 | Diary skipped | Not a fault, not a mood flag; noted in the report |
-| Wristband swapped | All wristband signals set aside for the day, both astronauts asked to check their band |
-| Camera saw the face < 30 min | Fatigue from the wristband (said in the report); blink rate "not seen" |
+| Profile mix-up | All typed measurements set aside for the day, both astronauts asked to check and re-enter |
+| Camera saw the face < 30 min | Fatigue and blink rate "not measured" (said in the report); typed values still count |
 | Two faces in front of a camera | Camera pauses until one face remains |
 | Rules and AI disagree | Both shown; the state follows the rules, the note says which one flagged |
 
@@ -74,7 +74,7 @@ The system **observes and suggests**; it does not diagnose or treat. Every actio
 | Type | Meaning | Example |
 |---|---|---|
 | confirm first | Re-measure with a reference device before believing a reading | finger-prick glucose, cuff blood pressure, oral thermometer |
-| equipment | Fix or check hardware | service the CO2 scrubber, check the wristband |
+| equipment | Fix or check hardware | service the CO2 scrubber, check the webcam |
 | self-care | Low-risk routine steps the crew already do | protect tonight's sleep, take a break |
 | escalate | Tell a person with authority | flight surgeon, flight psychologist, commander |
 

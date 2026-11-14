@@ -1,87 +1,96 @@
-"""Signal catalogue: every input NABD uses. No wearables or added hardware: only the
-workstation webcam, keyboard and mouse, a typed daily check-in, and the habitat's own
-environment data.
+"""Signal catalogue: every health indicator NABD uses. The astronaut enters them
+himself (keyboard and mouse) from the onboard medical kit and a daily check-in, and the
+laptop webcam adds fatigue and blinking. NABD adds no wearables or other hardware.
 
 Each signal says:
-  device       which input it comes from (see DEVICES)
+  device       where the value comes from (see DEVICES)
   system       which body system it belongs to (see BODY_SYSTEMS)
   domain       physical or mental
   bad          which direction is unhealthy: "high", "low" or "both"
   hard_low / hard_high   absolute safety limits, checked whatever the personal normal
+  how          plain instructions for taking the measurement
   min_sd       smallest spread allowed for the personal baseline (avoids false alarms
                when a value barely moves during the baseline days)
   about        one plain sentence an astronaut can read: what it is and why space matters
 """
 
 SIGNALS = {
-    # --- Workstation webcam (the camera already on every crew laptop / workstation) ---
+    # --- Typed in by the astronaut (keyboard and mouse), measured with the onboard medical kit ---
     "heart_rate": {
-        "name": "Heart rate (webcam estimate)", "unit": "bpm", "device": "camera", "system": "heart",
+        "name": "Resting heart rate", "unit": "bpm", "device": "entry", "system": "heart",
         "domain": "physical", "bad": "high", "decimals": 0, "hard_low": 40.0, "hard_high": 130.0,
-        "confirm_first": True,
-        "about": "Measured from tiny colour changes in the face with each heartbeat (remote "
-                 "photoplethysmography, rPPG). It is an estimate: a value past the safety limit is "
-                 "confirmed with a manual pulse check.",
+        "how": "Sit still for 5 minutes, then count the pulse at the wrist for 60 seconds (or read it from the pulse oximeter).",
+        "about": "How fast the heart beats at rest. Stress, poor sleep and illness push it up.",
+    },
+    "spo2": {
+        "name": "Blood oxygen", "unit": "%", "device": "entry", "system": "lungs",
+        "domain": "physical", "bad": "low", "decimals": 1, "hard_low": 92.0, "min_sd": 0.3,
+        "how": "Clip the finger pulse oximeter on, keep the hand still for 30 seconds, type the steady value.",
+        "about": "How much oxygen the blood carries. Low values can mean a breathing problem or bad cabin air.",
+    },
+    "body_temp": {
+        "name": "Body temperature", "unit": "°C", "device": "entry", "system": "immune",
+        "domain": "physical", "bad": "high", "decimals": 1, "hard_high": 38.0, "min_sd": 0.15,
+        "how": "Oral or ear thermometer, before eating or drinking.",
+        "about": "A raised temperature can be the first sign of an infection.",
     },
     "breathing_rate": {
-        "name": "Breathing rate (webcam estimate)", "unit": "/min", "device": "camera", "system": "lungs",
-        "domain": "physical", "bad": "high", "decimals": 0, "hard_high": 30.0, "confirm_first": True,
-        "about": "Breaths per minute, from the small up-and-down movement of the shoulders and chest on "
-                 "video. It rises with stress, illness, or too much CO2 in the cabin.",
+        "name": "Breathing rate", "unit": "/min", "device": "entry", "system": "lungs",
+        "domain": "physical", "bad": "high", "decimals": 0, "hard_high": 30.0,
+        "how": "Sit still and count breaths for 60 seconds (one rise and fall = one breath).",
+        "about": "Breaths per minute. It rises with stress, illness, or too much CO2 in the cabin.",
     },
-    "fatigue_score": {
-        "name": "Fatigue score (webcam)", "unit": "/100", "device": "camera", "system": "brain",
-        "domain": "mental", "bad": "high", "decimals": 0,
-        "about": "Built from eye closure (PERCLOS), yawns and microsleeps seen by the webcam during work.",
+    "bp_systolic": {
+        "name": "Blood pressure, systolic", "unit": "mmHg", "device": "entry", "system": "heart",
+        "domain": "physical", "bad": "high", "decimals": 0, "hard_high": 180.0,
+        "how": "Upper-arm cuff, seated, arm at heart level, after 5 minutes of rest. Type the top number.",
+        "about": "Pressure when the heart beats. Fluids shift toward the head in low gravity, and stress raises it.",
     },
-    "blink_rate": {
-        "name": "Blink rate (webcam)", "unit": "/min", "device": "camera", "system": "brain",
-        "domain": "mental", "bad": "high", "decimals": 0,
-        "about": "Blinks per minute. People blink more as they get tired.",
+    "bp_diastolic": {
+        "name": "Blood pressure, diastolic", "unit": "mmHg", "device": "entry", "system": "heart",
+        "domain": "physical", "bad": "high", "decimals": 0, "hard_high": 120.0,
+        "how": "Same cuff reading: type the bottom number.",
+        "about": "Pressure between heartbeats.",
     },
-    # --- Keyboard (normal daily work; only timing is used, never the text typed) ---
-    "typing_speed": {
-        "name": "Typing speed", "unit": "wpm", "device": "keyboard", "system": "brain",
-        "domain": "mental", "bad": "low", "decimals": 0, "min_sd": 2.0,
-        "about": "Words per minute during normal work. Fatigue, stress and poor sleep slow it down. "
-                 "Only key timing is recorded, never what was typed.",
+    "glucose": {
+        "name": "Blood sugar (morning)", "unit": "mg/dL", "device": "entry", "system": "metabolism",
+        "domain": "physical", "bad": "both", "decimals": 0, "hard_low": 54.0, "hard_high": 250.0,
+        "how": "Finger-prick glucose meter, in the morning before breakfast.",
+        "about": "Sugar in the blood. Less activity and diet changes on long missions can upset it.",
     },
-    "typing_errors": {
-        "name": "Typing error rate", "unit": "%", "device": "keyboard", "system": "brain",
-        "domain": "mental", "bad": "high", "decimals": 1, "min_sd": 0.4,
-        "about": "Share of keystrokes that are corrections (backspace/delete). It rises when focus drops.",
-    },
-    # --- Mouse (a 60-second reaction test each morning, plus normal use) ---
-    "reaction_time": {
-        "name": "Reaction time (mouse test)", "unit": "ms", "device": "mouse", "system": "brain",
-        "domain": "mental", "bad": "high", "decimals": 0, "min_sd": 8.0,
-        "about": "Time to click when a target appears, in a 60-second test each morning (like NASA's "
-                 "Psychomotor Vigilance Test). Slower reactions are an early sign of fatigue.",
-    },
-    "mouse_tremor": {
-        "name": "Hand steadiness (mouse tremor)", "unit": "/100", "device": "mouse", "system": "brain",
-        "domain": "physical", "bad": "high", "decimals": 0, "min_sd": 1.0,
-        "about": "Small shaking in mouse movement while pointing at a target (0 = steady). Fatigue, "
-                 "stress and some illnesses make the hand less steady.",
-    },
-    # --- Daily check-in, typed on the keyboard (about one minute) ---
+    # --- Daily check-in, typed or clicked ---
     "sleep_hours": {
-        "name": "Sleep duration (check-in)", "unit": "h", "device": "checkin", "system": "brain",
+        "name": "Sleep duration", "unit": "h", "device": "checkin", "system": "brain",
         "domain": "physical", "bad": "low", "decimals": 1,
-        "about": "Hours slept, entered in the morning check-in. Odd light cycles, noise and workload "
-                 "make sleep harder in space.",
+        "how": "Hours slept last night, entered in the morning check-in.",
+        "about": "Hours of sleep. Odd light cycles, noise and workload make sleep harder in space.",
     },
     "mood_score": {
         "name": "Mood score (self-report)", "unit": "/100", "device": "checkin", "system": "brain",
         "domain": "mental", "bad": "low", "decimals": 0,
+        "how": "Move the mood slider in the daily check-in (optional).",
         "about": "From the astronaut's own optional daily check-in. It is self-report, not a diagnosis; "
                  "the astronaut can skip a day, and it is private to them and the flight surgeon.",
     },
     "stress_words": {
         "name": "Stress words in daily log", "unit": "/day", "device": "checkin", "system": "brain",
         "domain": "mental", "bad": "high", "decimals": 0,
+        "how": "Counted automatically from the optional daily log text the astronaut types.",
         "about": "Words like 'tired', 'worried' or 'can't' in the optional daily log. A rough self-report "
                  "proxy only; private to the astronaut and the flight surgeon.",
+    },
+    # --- Camera (webcam images while the astronaut works at the laptop) ---
+    "fatigue_score": {
+        "name": "Fatigue score (camera)", "unit": "/100", "device": "camera", "system": "brain",
+        "domain": "mental", "bad": "high", "decimals": 0,
+        "how": "Measured by the laptop webcam from eye closure while the astronaut works. Nothing to do.",
+        "about": "Built from eye closure and microsleeps seen by the webcam during the day.",
+    },
+    "blink_rate": {
+        "name": "Blink rate (camera)", "unit": "/min", "device": "camera", "system": "brain",
+        "domain": "mental", "bad": "high", "decimals": 0,
+        "how": "Measured by the laptop webcam. Nothing to do.",
+        "about": "Blinks per minute. People blink more as they get tired.",
     },
 }
 
@@ -92,7 +101,7 @@ CABIN_SIGNALS = {
         "watch": 3.0, "act": 4.0, "decimals": 1,
     },
     "radiation": {
-        "name": "Radiation dose (habitat monitor, effective dose)", "unit": "mSv/day", "device": "cabin",
+        "name": "Radiation dose (cabin dosimeter, effective dose)", "unit": "mSv/day", "device": "cabin",
         "watch": 1.0, "act": 2.0, "decimals": 2,
     },
     # NASA-STD-3001 Vol. 2 [V2 6012] crew health environmental limits (OCHMO-TB-002): operating
@@ -118,15 +127,15 @@ SPE_DOSE_LIMIT = 250.0
 CO2_7DAY_REFERENCE = 2.5
 
 DEVICES = {
-    "camera": {"name": "Workstation webcam", "measures": "heart rate and breathing (estimates), blinks, eye closure, fatigue",
-               "how_often": "while the astronaut works at the workstation"},
-    "keyboard": {"name": "Workstation keyboard", "measures": "typing speed and corrections (timing only, never the text)",
-                 "how_often": "during normal work"},
-    "mouse": {"name": "Workstation mouse", "measures": "reaction time (60-second morning test), hand steadiness",
-              "how_often": "daily test + normal use"},
-    "checkin": {"name": "Daily check-in (typed)", "measures": "sleep, mood, stress words, symptoms", "how_often": "daily"},
+    "entry": {"name": "Typed measurement (onboard medical kit)",
+              "measures": "heart rate, blood oxygen, temperature, breathing, blood pressure, blood sugar",
+              "how_often": "each morning (about 5 minutes), or any time the astronaut feels unwell"},
+    "checkin": {"name": "Daily check-in (keyboard and mouse)", "measures": "sleep, mood, symptoms, optional log",
+                "how_often": "daily"},
+    "camera": {"name": "Laptop webcam", "measures": "eye closure, blinks, microsleeps (fatigue)",
+               "how_often": "while the astronaut works at the laptop"},
     "cabin": {"name": "Habitat environment data", "measures": "CO2, radiation, temperature, humidity "
-              "(read from the habitat's own life-support systems; NABD adds no sensors)", "how_often": "continuous"},
+              "(read from the habitat's own systems)", "how_often": "continuous"},
 }
 
 # Body systems for the clickable body figure. `hazards` are the NASA Human Research
@@ -141,7 +150,7 @@ BODY_SYSTEMS = {
     "heart": {
         "name": "Heart and blood vessels",
         "does": "Pumps blood and oxygen to the whole body.",
-        "space": "In low gravity, fluids shift toward the head and the heart works differently. Stress raises heart rate.",
+        "space": "In low gravity, fluids shift toward the head and the heart works differently. Stress raises heart rate and blood pressure.",
         "hazards": ["Altered gravity", "Hostile closed environment"],
     },
     "lungs": {
@@ -150,27 +159,33 @@ BODY_SYSTEMS = {
         "space": "Cabin air is recycled. If CO2 builds up, breathing speeds up and people get headaches and fatigue.",
         "hazards": ["Hostile closed environment"],
     },
+    "metabolism": {
+        "name": "Metabolism",
+        "does": "Turns food into energy and keeps blood sugar steady.",
+        "space": "Less movement and a limited diet on long missions can upset blood sugar control.",
+        "hazards": ["Altered gravity", "Distance from Earth"],
+    },
     "immune": {
         "name": "Immune-related warning indicators",
         "does": "Fights infection.",
         "space": "The immune system can change in space, and radiation adds risk. A fever is an early warning.",
         "hazards": ["Space radiation", "Hostile closed environment"],
-        "measured": "Not measured by the workstation. Fever and other symptoms reported in the check-in, plus "
-                    "periodic blood-test results when they are entered or imported. No results = unknown, never 'normal'.",
+        "measured": "Body temperature typed in each morning and symptoms from the check-in, plus periodic "
+                    "blood-test results when they are entered or imported. No results = unknown, never 'normal'.",
     },
     "bones": {
         "name": "Bones and muscles",
         "does": "Hold the body up and let it move.",
         "space": "Without gravity, bones and muscles weaken. No sensor measures this day to day: daily resistance exercise is the main protection.",
         "hazards": ["Altered gravity"],
-        "measured": "Not measured by the workstation. Exercise adherence (indirect), plus periodic bone-scan and "
+        "measured": "Not measured daily. Exercise adherence (indirect), plus periodic bone-scan and "
                     "strength-test results when entered or imported, with date and source.",
     },
 }
 
 
 CORE_SIGNALS = list(SIGNALS)
-# Signals measured at the workstation (webcam, keyboard, mouse). They need the astronaut to
-# have used their workstation that day, and they identify who was really at it.
-WORKSTATION_SIGNALS = tuple(k for k, v in SIGNALS.items() if v["device"] in ("camera", "keyboard", "mouse"))
-MIN_WORKSTATION_MINUTES = 30  # less workstation time than this in a day = not enough to measure
+CAMERA_SIGNALS = ("fatigue_score", "blink_rate")
+# Measurements typed in from the medical kit: they belong to whoever's profile they are saved in.
+ENTRY_SIGNALS = tuple(k for k, v in SIGNALS.items() if v["device"] == "entry")
+MIN_CAMERA_MINUTES = 30  # less face time than this in a day = camera readings not trusted

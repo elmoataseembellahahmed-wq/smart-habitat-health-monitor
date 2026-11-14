@@ -35,7 +35,7 @@ function tab(which) {
 }
 
 // ---------- quick check ----------
-const EXTRA = { workstation_minutes: ["Time at the workstation", "min"], exercise_minutes: ["Exercise", "min"],
+const EXTRA = { camera_minutes: ["Webcam time (face in view)", "min"], exercise_minutes: ["Exercise", "min"],
   personal_dose: ["Personal dosimeter", "mSv/day"] };
 
 function buildFields() {
@@ -43,8 +43,9 @@ function buildFields() {
   const sig = st.mission.signals;
   const keys = Object.keys(sig).filter((k) => !sig[k].derived);
   box.replaceChildren(
-    ...keys.map((k) => el("label", {}, el("span", {}, sig[k].name, " ", el("span", { class: "u" }, sig[k].unit)),
+    ...keys.map((k) => el("label", { title: sig[k].how || "" }, el("span", {}, sig[k].name, " ", el("span", { class: "u" }, sig[k].unit)),
       el("input", { id: `f_${k}`, type: "number", step: "any" }),
+      sig[k].how ? el("span", { class: "n how" }, `How: ${sig[k].how}`) : null,
       el("span", { class: "n", id: `n_${k}` }, ""))),
     ...Object.entries(EXTRA).map(([k, [name, unit]]) => el("label", {}, el("span", {}, name, " ", el("span", { class: "u" }, unit)),
       el("input", { id: `f_${k}`, type: "number", step: "any" }))));
@@ -129,15 +130,15 @@ async function upload(file) {
   const head = el("tr", {}, el("th", {}, ""), ...days.map((d) => el("td", { class: "daynum", title: `day ${d}` }, d % 10 === 0 ? d : "")));
   const rows = r.crew.map((c) => el("tr", {}, el("th", {}, `${c.name} (${c.id})`),
     ...r.grid[c.id].map((x) => {
-      const marks = [x.input_check.length ? "i" : "", x.session_check ? "l" : "", x.drift.length ? "d" : ""].join("");
+      const marks = [x.entry_check.length ? "e" : "", x.profile_check ? "p" : "", x.drift.length ? "d" : ""].join("");
       const td = el("td", { class: x.state, title: `day ${x.day}: ${x.state}, score ${x.score}, AI ${x.ai}, data ${x.confidence}` +
-        (x.input_check.length ? `, input check: ${x.input_check.join(", ")}` : "") +
-        (x.session_check ? `, login swapped with ${x.session_check}` : "") + (x.drift.length ? `, slow drift: ${x.drift.join(", ")}` : "") }, marks);
+        (x.entry_check.length ? `, entry check: ${x.entry_check.join(", ")}` : "") +
+        (x.profile_check ? `, profile mixed up with ${x.profile_check}` : "") + (x.drift.length ? `, slow drift: ${x.drift.join(", ")}` : "") }, marks);
       td.addEventListener("click", () => { st.sel = { aid: c.id, day: x.day, td }; loadCsvReport(); });
       return td;
     })));
   $("csvgrid").replaceChildren(el("table", {}, head, ...rows),
-    el("div", { class: "legend2" }, "Green Normal · amber Watch · red Act · letters: i = input check, l = login swap, d = slow drift"));
+    el("div", { class: "legend2" }, "Green Normal · amber Watch · red Act · letters: e = entry check, p = profile mix-up, d = slow drift"));
   const wide = Object.entries(r.crew_wide);
   if (wide.length) $("csvwide").replaceChildren(el("h3", {}, "Crew-wide events"),
     el("ul", {}, ...wide.map(([d, notes]) => el("li", {}, el("b", {}, `Day ${d}: `), notes.join(" ")))));

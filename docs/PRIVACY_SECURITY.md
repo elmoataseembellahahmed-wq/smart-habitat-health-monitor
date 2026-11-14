@@ -6,16 +6,16 @@
 2. The face detector and eye detector run on it. The only outputs are: number of faces, eyes open yes/no.
 3. `BlinkTracker` keeps **only times and open/closed flags** for the last 60 s, plus daily totals (minutes in view, blinks, microsleeps).
 4. The frame variable is overwritten by the next frame. Nothing is written to disk.
-5. Once a second the camera sends **numbers only** (blink rate, eye closure %, fatigue score, confidence, the wristband ID) to the on-board server.
+5. Once a second the camera sends **numbers only** (blink rate, eye closure %, fatigue score, confidence, the ID of the astronaut logged in on the laptop) to the on-board server.
 
 This is enforced and tested: `test_camera_never_stores_or_sends_images` checks that no camera code calls an image or video writer (`imwrite`, `VideoWriter`, `imencode`) or opens a binary file for writing, and that every value sent is a number, a yes/no or a short label. The only file the camera writes is the personal blink normal (two numbers) in `camera/baselines/`. The preview window can be switched off with `--no-window`.
 
 ## Identity: who is in front of the camera?
 
-* No face recognition. Each camera reading carries the ID of the wristband assigned to that camera position.
+* No face recognition. Each camera reading carries the ID of the astronaut logged in on that laptop.
 * If **two or more faces** are in view, the camera pauses: no measurement is filed under anyone.
 * Remaining risk: someone else alone at a camera assigned to another band. Mitigation designed (not built): a short-range proximity handshake between camera and band, and "identity uncertain" when the nearest band is not the assigned one.
-* Wristband swaps are caught from the readings themselves (`engine/integrity.py`) and never raise a health alarm.
+* Measurements saved in the wrong profile are caught from the values themselves (`engine/integrity.py`) and never raise a health alarm.
 
 ## Who can see what (enforced by the server)
 

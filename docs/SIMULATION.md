@@ -24,7 +24,7 @@ The same seed always gives the same mission. `data/simulated_mission_data.csv` i
 | 121 | Chen | One bad night | sleep -3 h, fatigue +18, HRV -8, HR +5, BP +6 |
 | 123-125 | All | CO2 scrubber degrading | CO2 +0.7 mmHg per day; everyone breathes a little faster |
 | 60-61, 122 | Amira, Ben | Camera gap | face in view 0-15 min |
-| 50 | Amira + Chen | Wristband swap | the 5 wristband signals exchanged |
+| 50 | Amira + Chen | Profile mix-up | the 7 typed measurements exchanged |
 | 40-41 | Amira | Oxygen sensor disconnected | SpO2 missing |
 | 30-35 | Chen | Expired glucose patch | glucose frozen at one value |
 | 35 | Ben | Band off the skin | wrist temperature 31.2 °C |

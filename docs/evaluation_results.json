@@ -1,35 +1,35 @@
 {
   "missions": 20,
   "seeds": "1000-1019",
-  "healthy_astronaut_days": 5186,
-  "false_watch_per_100_days": 0.62,
+  "healthy_astronaut_days": 5207,
+  "false_watch_per_100_days": 0.69,
   "false_act_per_100_days": 0.0,
-  "population_limits_false_flags_per_100_days": 0.0,
-  "gradual_declines": 24,
+  "population_limits_false_flags_per_100_days": 0.04,
+  "gradual_declines": 26,
   "decline_first_watch": {
-    "detected": "24/24",
+    "detected": "26/26",
     "median_delay_days": 3.0,
-    "max_delay_days": 5
+    "max_delay_days": 8
   },
   "decline_first_act": {
-    "detected": "23/24",
-    "median_delay_days": 6,
-    "max_delay_days": 11
+    "detected": "22/26",
+    "median_delay_days": 6.0,
+    "max_delay_days": 16
   },
   "decline_first_ai_flag": {
-    "detected": "24/24",
-    "median_delay_days": 3.0,
-    "max_delay_days": 11
+    "detected": "25/26",
+    "median_delay_days": 5,
+    "max_delay_days": 13
   },
   "decline_population_limits": {
-    "detected": "16/24",
-    "median_delay_days": 9.0,
-    "max_delay_days": 50
+    "detected": "20/26",
+    "median_delay_days": 9.5,
+    "max_delay_days": 41
   },
-  "bad_nights": 13,
+  "bad_nights": 9,
   "bad_night_went_to_act": 0,
   "bad_night_act_next_day": 0,
-  "sensor_fault_days": 21,
+  "sensor_fault_days": 33,
   "sensor_fault_read_as_illness": 0,
-  "sensor_fault_reported_as_sensor_check": 21
+  "sensor_fault_reported_as_sensor_check": 33
 }

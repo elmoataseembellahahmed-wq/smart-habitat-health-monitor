@@ -10,15 +10,14 @@ from .fusion import action_type
 TYPE_AR = {"escalate": "تصعيد", "equipment": "أجهزة", "confirm": "تأكيد أولًا",
            "self-care": "عناية ذاتية", "none": "-"}
 CONF_AR = {"full": "كاملة", "limited": "محدودة", "low": "منخفضة"}
-DEVICE_AR = {"camera": "كاميرا محطة العمل", "keyboard": "لوحة المفاتيح", "mouse": "الماوس",
-             "checkin": "التسجيل اليومي", "cabin": "بيانات بيئة المسكن"}
-FAULT_AR = {"missing": "لم تصل قراءة اليوم (الكاميرا مغطاة أو مطفأة، أو لم يُسجَّل الإدخال)",
-            "out_of_range": "القراءة غير ممكنة جسديًا، فاعتُبرت خطأ في الإدخال",
-            "stuck": "نفس القيمة بالضبط لعدة أيام متتالية: الإدخال متجمّد"}
-DEVICE_ACTION_AR = {"camera": "افحص الكاميرا: هل هي شغالة وغير مغطاة، والوجه في إضاءة جيدة؟",
-                    "keyboard": "افحص لوحة المفاتيح وتطبيق نبض على محطة العمل.",
-                    "mouse": "افحص الماوس وأعد اختبار رد الفعل (60 ثانية).",
-                    "checkin": "أكمل التسجيل اليومي."}
+DEVICE_AR = {"entry": "القياسات المُدخلة (حقيبة الإسعاف)", "checkin": "التسجيل اليومي",
+             "camera": "كاميرا اللابتوب", "cabin": "بيانات بيئة المسكن"}
+FAULT_AR = {"missing": "لم تُدخَل قيمة اليوم",
+            "out_of_range": "القيمة غير ممكنة جسديًا، فاعتُبرت خطأ في الكتابة",
+            "stuck": "نفس القيمة بالضبط لعدة أيام متتالية: يبدو أنها منسوخة من يوم سابق"}
+DEVICE_ACTION_AR = {"entry": "أعد القياس بأدوات حقيبة الإسعاف واكتب القيمة من جديد (انتبه للعلامة العشرية).",
+                    "checkin": "أكمل التسجيل اليومي.",
+                    "camera": "افحص كاميرا اللابتوب: هل هي شغالة وغير مغطاة، والوجه في إضاءة جيدة؟"}
 
 STATE_AR = {"NORMAL": "طبيعي", "WATCH": "مراقبة", "ACT": "تدخّل فوري"}
 LEVEL_AR = {"mild": "خفيف", "strong": "قوي", "critical": "حرج"}
@@ -28,17 +27,18 @@ ROLE_AR = {"Commander": "قائدة المهمة", "Flight engineer": "مهند�
 NAME_AR = {"Amira": "أميرة", "Ben": "بن", "Chen": "تشين"}
 
 SIGNAL_AR = {
-    "heart_rate": ("معدل النبض (تقدير من الكاميرا)", "نبضة في الدقيقة"),
-    "breathing_rate": ("معدل التنفس (تقدير من الكاميرا)", "نَفَس في الدقيقة"),
+    "heart_rate": ("معدل نبض القلب أثناء الراحة", "نبضة في الدقيقة"),
+    "spo2": ("نسبة الأكسجين في الدم", "%"),
+    "sleep_hours": ("مدة النوم", "ساعة"),
     "fatigue_score": ("درجة الإرهاق (الكاميرا)", "من 100"),
     "blink_rate": ("معدل الرمش", "رمشة في الدقيقة"),
-    "typing_speed": ("سرعة الكتابة", "كلمة في الدقيقة"),
-    "typing_errors": ("نسبة التصحيح في الكتابة", "%"),
-    "reaction_time": ("زمن رد الفعل (اختبار الماوس)", "مللي ثانية"),
-    "mouse_tremor": ("ثبات اليد (رعشة الماوس)", "من 100"),
-    "sleep_hours": ("مدة النوم (التسجيل اليومي)", "ساعة"),
     "mood_score": ("درجة المزاج (تقرير ذاتي اختياري)", "من 100"),
     "stress_words": ("كلمات الضغط في اليوميات", "كلمة في اليوم"),
+    "body_temp": ("حرارة الجسم", "°م"),
+    "breathing_rate": ("معدل التنفس", "نَفَس في الدقيقة"),
+    "bp_systolic": ("ضغط الدم الانقباضي", "ملم زئبق"),
+    "bp_diastolic": ("ضغط الدم الانبساطي", "ملم زئبق"),
+    "glucose": ("سكر الدم (صباحًا)", "ملغ/دسل"),
 }
 CABIN_AR = {"co2": ("ثاني أكسيد الكربون في المقصورة", "ملم زئبق"),
             "radiation": ("جرعة الإشعاع", "ملّي سيفرت في اليوم"),
@@ -50,12 +50,12 @@ PATTERN_AR = {
                        "إشارات الجسم (القلب) والإشارات النفسية (المزاج والإرهاق) خارج المعتاد معًا، مع نوم سيئ."),
     "sleep_debt": ("تراكم نقص النوم", "النوم أقصر من المعتاد لعدة ليالٍ."),
     "mental_strain": ("إجهاد نفسي", "المزاج منخفض وكلمات الضغط في اليوميات مرتفعة."),
-    "fast_breathing": ("تنفس سريع",
-                       "معدل التنفس أعلى بوضوح من المعتاد لهذا الرائد أو فوق حد الأمان."),
-    "slowed_reactions": ("بطء في رد الفعل والتركيز",
-                         "زمن رد الفعل والكتابة (السرعة أو التصحيحات) أسوأ من المعتاد لهذا الرائد: "
-                         "علامة مبكرة على الإرهاق تهم المهام الحرجة للسلامة."),
-    "unsteady_hand": ("عدم ثبات اليد", "ثبات اليد في اختبار الماوس أسوأ بوضوح من المعتاد لهذا الرائد."),
+    "low_oxygen": ("انخفاض الأكسجين في الدم",
+                   "الأكسجين في الدم أقل من المعتاد لهذا الرائد أو أقل من حد الأمان."),
+    "high_bp": ("ارتفاع ضغط الدم",
+                "ضغط الدم أعلى من المعتاد لهذا الرائد منذ يومين أو أكثر، أو فوق حد الأمان."),
+    "glucose": ("سكر الدم خارج المعدل", "سكر الدم الصباحي خارج المعدل الطبيعي لهذا الرائد."),
+    "fever": ("احتمال حمّى", "حرارة الجسم أعلى من المعتاد بوضوح، وقد تكون أول علامة على عدوى."),
     "cabin_air": ("جودة هواء المقصورة",
                   "ثاني أكسيد الكربون في المقصورة فوق الحد. هذا يؤثر على الطاقم كله وقد يسبب صداعًا وإرهاقًا."),
 }
@@ -110,27 +110,17 @@ ACTION_AR = {
         "استرح 10 دقائق ثم أعد قياس معدل التنفس، وافحص ثاني أكسيد الكربون في المقصورة.",
     "Reported severe symptom: stop current work, follow the mission emergency procedure and contact the flight surgeon now. Do not wait for the next contact window.":
         "عَرَض شديد: أوقف العمل الحالي، واتبع إجراء الطوارئ المعتمد للمهمة، وتواصل مع طبيب الرحلة الآن دون انتظار نافذة الاتصال التالية.",
-    "Check that you are logged in to the workstation as yourself, then log out and back in if needed.":
-        "تأكّد أنك مسجّل الدخول على محطة العمل باسمك أنت، وسجّل خروج ودخول من جديد إن لزم.",
-    "Rest for 10 minutes, then re-check breathing with a manual count (breaths in 1 minute).":
-        "استرح 10 دقائق، ثم عُدّ أنفاسك يدويًا لمدة دقيقة.",
-    "Check cabin air (CO2) and notify the flight surgeon if it stays high.":
-        "افحص هواء المقصورة (ثاني أكسيد الكربون) وأبلغ طبيب الرحلة إن ظل مرتفعًا.",
-    "Postpone safety-critical tasks (robotics, docking, spacewalk preparation) until a repeat test is normal.":
-        "أجّل المهام الحرجة للسلامة (الذراع الآلي، الالتحام، التحضير للسير الفضائي) حتى يصبح الاختبار المعاد طبيعيًا.",
-    "Repeat the 60-second reaction test after a rest break.": "أعد اختبار رد الفعل (60 ثانية) بعد استراحة.",
-    "Repeat the steadiness test after rest; note caffeine, fatigue and any medication.":
-        "أعد اختبار ثبات اليد بعد الراحة، ولاحظ الكافيين والإرهاق وأي دواء.",
-    "Tell the flight surgeon if it lasts more than a day.": "أبلغ طبيب الرحلة إن استمر أكثر من يوم.",
-    "Rest 10 minutes, then check the pulse by hand to confirm the webcam estimate; hydrate.":
-        "استرح 10 دقائق، ثم قِس النبض يدويًا للتأكد من تقدير الكاميرا، واشرب الماء.",
-    "Rest for 10 minutes and re-count breaths by hand; check cabin CO2.":
-        "استرح 10 دقائق وعُدّ أنفاسك يدويًا، وافحص ثاني أكسيد الكربون في المقصورة.",
-    "Take a short break; avoid long precision work until rested.":
-        "خذ استراحة قصيرة، وتجنّب العمل الدقيق الطويل حتى ترتاح.",
-    "Take a short break; double-check important commands before sending them.":
-        "خذ استراحة قصيرة، وراجع الأوامر المهمة مرتين قبل إرسالها.",
-    "Repeat the steadiness test after rest.": "أعد اختبار ثبات اليد بعد الراحة.",
+    "Check that today's measurements were saved in your own profile, then re-enter them if needed.":
+        "تأكّد أن قياسات اليوم محفوظة في ملفك أنت، وأعد إدخالها إن لزم.",
+    "Re-measure blood oxygen with the finger pulse oximeter, hand still and warm.":
+        "أعد قياس الأكسجين بجهاز الإصبع، واليد ثابتة ودافئة.",
+    "Re-measure blood oxygen now with the pulse oximeter (hand still and warm).":
+        "أعد قياس الأكسجين الآن بجهاز الإصبع (اليد ثابتة ودافئة).",
+    "Re-check blood pressure after 5 minutes seated, arm at heart level.":
+        "أعد قياس الضغط بعد 5 دقائق جلوس، والذراع في مستوى القلب.",
+    "Repeat the finger-prick glucose check to confirm.": "أعد قياس السكر من وخزة الإصبع للتأكد.",
+    "Re-check temperature in 30 minutes, before eating or drinking.":
+        "أعد قياس الحرارة بعد 30 دقيقة، قبل الأكل أو الشرب.",
     "Flight surgeon: review the slow change in this astronaut's normal since the start of the mission "
     "(it is too gradual to show on any single day).":
         "طبيب الرحلة: راجع التغيّر البطيء في المعدل الطبيعي لهذا الرائد منذ بداية المهمة "
@@ -169,7 +159,7 @@ def reason_ar(f):
         side = "تحت" if f["limit"][0] == "below" else "فوق"
         text += f"، و{side} حد الأمان ({f['limit'][1]:g} {unit})"
         if SIGNALS[f["signal"]].get("confirm_first"):
-            text += " (قيمة تقديرية من الكاميرا: تأكّد بقياس النبض أو عدّ الأنفاس يدويًا الآن)"
+            text += " (قيمة تقديرية: تأكّد بقياس الحرارة من الفم أو الأذن قبل أي إجراء)"
     return text + "."
 
 
@@ -253,7 +243,7 @@ def build_report_ar(member, day, decision, trend, cabin):
 
     faults = decision.get("sensor_faults") or []
     if faults or decision.get("self_report_skipped"):
-        L.append("فحص المدخلات (أجهزة، وليست صحة):")
+        L.append("فحص الإدخالات (أخطاء إدخال، وليست صحة):")
         for f in faults:
             for k, code in zip(f["signals"], f["codes"]):
                 L.append(f"  - {DEVICE_AR.get(f['device'], f['device'])} ({SIGNAL_AR[k][0]}): {FAULT_AR[code]}.")
@@ -262,13 +252,12 @@ def build_report_ar(member, day, decision, trend, cabin):
             L.append("  - لم تُكتب اليوميات اليوم (وهي اختيارية)، فلم يُقيَّم المزاج. لا مشكلة في ذلك.")
         L.append("")
 
-    band = decision.get("session_check")
+    band = decision.get("profile_check")
     if band:
         other = NAME_AR.get(band["with_name"], band["with_name"])
-        L.append("فحص تسجيل الدخول:")
-        L.append(f"  - قراءات محطة العمل اليوم (الكتابة ورد الفعل والكاميرا) تطابق المعدل الطبيعي لـ{other}، "
-                 f"وجلسة {other} تطابق هذا الرائد. الأرجح أن كل واحد استخدم حساب الآخر. لا يُطلق إنذار صحي "
-                 "بسبب ذلك: تم تجاهل قراءات محطة العمل لهذا اليوم.")
+        L.append("فحص الملف الشخصي:")
+        L.append(f"  - قياسات اليوم في هذا الملف تطابق المعدل الطبيعي لـ{other}، وقياسات {other} تطابق هذا الرائد. "
+                 "الأرجح أن كل واحد حفظ قياساته في ملف الآخر. لا يُطلق إنذار صحي بسبب ذلك: تم تجاهل القياسات لهذا اليوم.")
         L.append("")
     if decision.get("drift"):
         L.append("تغيّر بطيء منذ بداية المهمة (لطبيب الرحلة):")
@@ -359,6 +348,15 @@ def build_report_ar(member, day, decision, trend, cabin):
     for i, a in enumerate(decision["actions"], 1):
         L.append(f"  {i}. [{TYPE_AR[action_type(a)]}] {ACTION_AR.get(a, a)}")
     L.append("")
+
+    for g in decision.get("guidance_ar") or []:
+        L.append(f"إرشادات: {g['title']} (برنامج NASA للأبحاث البشرية: {g['hazard']})")
+        L.append(f"  المعنى: {g['means']}")
+        L.append("  افعل الآن: " + " ".join(g["do_now"]))
+        L.append("  للتحسين والوقاية: " + " ".join(g["improve"]))
+        L.append("  تواصل مع طبيب الرحلة إذا: " + " ".join(g["call_if"]))
+        L.append(f"  {g['medicine']}  المصدر: {g['source']}")
+        L.append("")
 
     routine = decision.get("routine")
     if routine:

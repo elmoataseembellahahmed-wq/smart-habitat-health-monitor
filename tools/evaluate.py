@@ -8,7 +8,7 @@ at random days with random sizes. Every day is labelled, so we can count:
   * false alarms per 100 healthy astronaut-days (WATCH and ACT separately)
   * gradual declines: share detected, and days from onset to first WATCH / ACT / AI flag
   * single bad nights: share that wrongly went to ACT
-  * input faults: share that were wrongly read as illness
+  * entry errors: share that were wrongly read as illness
 and compare with a simple baseline: fixed "population" limits with no personal normal.
 
 This is still synthetic data. It checks that the logic behaves as designed on data it
@@ -36,17 +36,18 @@ CREW = [{"id": "A", "name": "P1", "role": "Crew"}, {"id": "B", "name": "P2", "ro
         {"id": "C", "name": "P3", "role": "Crew"}]
 
 # Population ranges personal normals are drawn from.
-NORMAL_RANGE = {"heart_rate": (54, 72), "breathing_rate": (12, 16), "fatigue_score": (16, 32),
-                "blink_rate": (12, 20), "typing_speed": (40, 85), "typing_errors": (2.5, 7.0),
-                "reaction_time": (240, 330), "mouse_tremor": (8, 17), "sleep_hours": (6.4, 7.8),
-                "mood_score": (68, 84), "stress_words": (1, 4)}
-NOISE = dict(simulate.NOISE)
-DECLINE = dict(simulate.BEN_EFFECT)
+NORMAL_RANGE = {"heart_rate": (52, 70), "spo2": (96.5, 98.6), "sleep_hours": (6.4, 7.8),
+                "fatigue_score": (16, 32), "blink_rate": (12, 20), "mood_score": (68, 84),
+                "stress_words": (1, 4), "body_temp": (36.4, 36.9), "breathing_rate": (12, 16),
+                "bp_systolic": (104, 126), "bp_diastolic": (64, 80), "glucose": (84, 102)}
+NOISE = {**simulate.NOISE, **simulate.VITALS_NOISE}
+DECLINE = {**simulate.BEN_EFFECT, **simulate.BEN_VITALS_EFFECT}
 
 # A simple comparator with no personal normal: fixed limits for everyone.
-POPULATION_LIMITS = {"heart_rate": ("high", 85), "breathing_rate": ("high", 20), "sleep_hours": ("low", 5.0),
-                     "typing_speed": ("low", 30), "typing_errors": ("high", 12), "reaction_time": ("high", 420),
-                     "mouse_tremor": ("high", 30), "mood_score": ("low", 50), "fatigue_score": ("high", 55)}
+POPULATION_LIMITS = {"heart_rate": ("high", 85), "spo2": ("low", 94),
+                     "sleep_hours": ("low", 5.0), "bp_systolic": ("high", 135), "bp_diastolic": ("high", 88),
+                     "glucose": ("high", 140), "body_temp": ("high", 37.8), "breathing_rate": ("high", 20),
+                     "mood_score": ("low", 50), "fatigue_score": ("high", 55)}
 
 
 def generate(seed):
@@ -62,7 +63,7 @@ def generate(seed):
         ramp = rng.randint(5, 14)          # days to reach full effect
         size = rng.uniform(0.3, 1.0)
         affected = set(rng.sample(sorted(DECLINE), rng.randint(6, len(DECLINE))))
-        fault_key = rng.choice(["heart_rate", "typing_speed", "reaction_time", "mouse_tremor"])
+        fault_key = rng.choice(["spo2", "glucose", "heart_rate", "body_temp"])
         days = {}
         for d in DAYS:
             r = {}
@@ -71,11 +72,11 @@ def generate(seed):
                 if kind == "decline" and d >= start and k in affected:
                     v += DECLINE[k] * size * min(1.0, (d - start + 1) / ramp)
                 if kind == "bad_night" and d == start:
-                    v += simulate.CHEN_BAD_NIGHT.get(k, 0)
+                    v += {**simulate.CHEN_BAD_NIGHT, **simulate.CHEN_BAD_NIGHT_VITALS}.get(k, 0)
                 if k == "stress_words":
                     v = round(v)
                 r[k] = round(simulate._clamp(k, v), 2)
-            r["workstation_minutes"] = round(rng.uniform(150, 360))
+            r["camera_minutes"] = round(rng.uniform(150, 360))
             r["exercise_minutes"] = round(rng.gauss(90, 12))
             days[d] = r
         if kind == "sensor_fault":

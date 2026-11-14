@@ -24,7 +24,7 @@ from . import simulate
 from .monitor import HealthMonitor
 from .signals import CORE_SIGNALS, CABIN_SIGNALS
 
-EXTRA = ["workstation_minutes", "exercise_minutes", "personal_dose"]
+EXTRA = ["camera_minutes", "exercise_minutes", "personal_dose"]
 COLUMNS = (["day", "astronaut_id", "astronaut_name", "role"] + CORE_SIGNALS + EXTRA
            + ["symptoms", "cabin_co2", "radiation", "cabin_temperature", "cabin_humidity"])
 MIN_DAYS = 15  # 14 days to learn the normal + at least one day to judge
@@ -42,8 +42,8 @@ def summary(m, aid, day):
     d = m.assess(aid, day)
     return {"day": day, "state": d["state"], "score": d["score"], "ai": d["ai"]["level"],
             "confidence": d["coverage"]["confidence"],
-            "input_check": [f["device_name"] for f in d["sensor_faults"]],
-            "session_check": d["session_check"]["with_name"] if d["session_check"] else None,
+            "entry_check": [f["device_name"] for f in d["sensor_faults"]],
+            "profile_check": d["profile_check"]["with_name"] if d["profile_check"] else None,
             "drift": [x["signal"] for x in d["drift"]]}
 
 
@@ -84,8 +84,8 @@ class QuickCheck:
         for k in CORE_SIGNALS + EXTRA:
             v = values.get(k)
             reading[k] = None if v in (None, "") else float(v)
-        if reading["workstation_minutes"] is None:
-            reading["workstation_minutes"] = 240.0
+        if reading["camera_minutes"] is None:
+            reading["camera_minutes"] = 240.0
         reading["symptoms"] = [s for s in (values.get("symptoms") or []) if s]
         readings = {m["id"]: self._normal_day(m["id"], len(self.added)) for m in self.m.crew if m["id"] != aid}
         readings[aid] = reading
@@ -150,8 +150,8 @@ def parse_csv(text):
             except ValueError:
                 errors.append(f"Row {i}: '{k}' is not a number ({row.get(k)!r}).")
                 reading[k] = None
-        if reading["workstation_minutes"] is None:
-            reading["workstation_minutes"] = 240.0
+        if reading["camera_minutes"] is None:
+            reading["camera_minutes"] = 240.0
         reading["symptoms"] = [s.strip().lower() for s in (row.get("symptoms") or "").split(";") if s.strip()]
         if day in data["crew"].setdefault(aid, {}):
             errors.append(f"Row {i}: astronaut {aid} already has a row for day {day}.")

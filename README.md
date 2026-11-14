@@ -1,187 +1,105 @@
-# Smart Habitat Health Monitor
+# NABD: Smart Habitat Health Monitor
 
 NASA Space Apps Challenge 2026: *Create Health Monitoring Software for Astronauts on Space Missions*
 
-A smart habitat that checks each astronaut's health **all day, without tests**. A wristband,
-a few small body sensors and cabin cameras collect vital signs during normal work and sleep.
-On-board software compares every reading to that astronaut's **own** normal, decides on one
-status (**NORMAL / WATCH / ACT**), double-checks with an **AI anomaly model**, and shows the
-astronaut what is happening, why, and what to do: on a **clickable body figure** and in a
-daily report (English or Arabic). It runs fully offline, because a message from Mars can take
-up to 20 minutes to reach Earth.
+NABD helps an astronaut **assess his own health and act on it**, with no wearables and no
+added hardware. Each morning the astronaut **types in** a few measurements taken with the
+standard onboard medical kit (pulse, blood oxygen, temperature, breathing, blood pressure,
+blood sugar) and a short **check-in** (sleep, mood, symptoms), using the keyboard and mouse.
+The laptop **webcam** adds fatigue and blinking while he works.
 
-## Scope (what this prototype is, and is not)
-* It monitors **astronaut health** from 13 signals and **two habitat values: cabin CO2 and radiation dose**. It does not monitor oxygen, pressure, humidity or trace contaminants.
-* Only the webcam is a real input. All other devices are simulated (see `docs/FEATURE_STATUS.md`).
-* It does **not** measure bone density, muscle mass or immune status. Bones and muscles show exercise adherence only; the immune system shows only a fever warning.
-* Thresholds and actions are prototype values, not clinically validated (`docs/THRESHOLDS.md`). It is decision support: the flight surgeon makes medical decisions.
+NABD compares every value with that astronaut's **own normal**, gives one status
+(**NORMAL / WATCH / ACT**), double-checks it with an **AI anomaly model**, and tells him
+**what it means, what to do now, how to prevent it, and when to call the flight surgeon**,
+on a clickable body figure and in a daily report in **English or Arabic**. It runs fully
+offline, because a message from Mars can take up to 20 minutes to reach Earth.
+
+## How the astronaut knows his health status
+1. **One colour per day:** green NORMAL, amber WATCH, red ACT, on his card and on each body system.
+2. **What changed:** the signals that moved away from *his* normal, each with a plain reason ("blood pressure 138, 15% above your normal of 120, for 3 days").
+3. **How sure:** how many values today's status is based on, and which are missing.
+4. **Guidance:** for each finding, a card with *what it means*, *do now*, *improve and prevent*, and *call the flight surgeon if*, linked to the NASA Human Research Program page it comes from. NABD never names a medicine or a dose: medicines only by the flight surgeon's instruction.
+5. **When to escalate:** ACT tells him to contact the flight surgeon; a severe symptom or a broken safety limit means ACT at once.
+
+## Inputs (no wearables or added hardware)
+| Input | Values | How |
+|---|---|---|
+| Typed measurements (onboard medical kit) | resting heart rate, blood oxygen, body temperature, breathing rate, blood pressure, morning blood sugar | about 5 minutes each morning; every field shows how to measure it |
+| Daily check-in (keyboard and mouse) | sleep hours, mood, optional log (stress words), severe symptoms | about 1 minute |
+| Laptop webcam | blink rate, eye closure, fatigue | automatic while he works; only numbers leave the camera, never video |
+| Habitat data | cabin CO2, radiation, temperature, humidity | from the habitat's own systems |
+
+## The two alert paths
+* **Immediate safety:** a typed value past a safety limit (blood oxygen below 92%, temperature 38.0 °C or more, blood pressure above 180/120, blood sugar below 54 or above 250, heart rate below 40 or above 130, breathing above 30), cabin CO2 above its ACT limit, or a severe symptom: **ACT the same day**.
+* **Slow deterioration:** change against the personal normal. One bad day gives WATCH; ACT needs the change to last 2 or more days. This keeps false alarms low.
+* **Entry checks first:** a skipped value, a value copied for 4 days, or a typo (3.67 °C instead of 36.7) is marked "unavailable" and the astronaut is asked to re-enter it. It never becomes a health alarm.
+* **Profile mix-up check:** if two astronauts save their values in each other's profile, each profile suddenly matches the other person's normal. NABD sets that day aside and asks them to check, with no health alarm.
+
+## Results
+**Independent evaluation on 20 new simulated missions** (`tools/evaluate.py`, seeds 1000-1019, data the system never saw):
+
+| Measure | NABD | Fixed limits for everyone |
+|---|---|---|
+| Gradual declines found | 26 of 26 (median 3 days) | 20 of 26 (median 9.5 days) |
+| False ACT per 100 healthy days | 0 | n/a |
+| False WATCH per 100 healthy days | 0.69 | n/a |
+| Single bad nights that went to ACT | 0 of 9 | n/a |
+| Entry errors read as illness | 0 of 33 | n/a |
+
+This is synthetic data: it checks that the logic works as designed, not clinical validity.
+
+**Demo mission (days 1-125, 3 astronauts):** Ben WATCH on day 120 and ACT from day 121; Chen one bad night (WATCH on 121, NORMAL on 122); cabin CO2 failure on days 123-125 flagged as a crew-wide problem; Amira and Chen's profile mix-up on day 50 caught with no alarm; Amira's spacewalk on days 60-61 shown as "camera not measured". Over the 312 healthy crew-days, 2 single-day WATCHes and no ACT. The AI agrees with the rules on 69 of 78 crew-days in days 100-125.
+
+**44 automated tests** pass (`python tests/test_scenario.py`).
+
+## NASA resources used
+All five resources on the challenge's Resources tab (`engine/nasa_resources.py`, `engine/guidance.py`, `docs/NASA_RESOURCES.md`):
+* **NASA HRP: 5 Hazards** and **Risks of Human Spaceflight:** every body system names its hazards, every finding links to its HRP risk, and every guidance card is written from the hazard pages (for example light and sleep timing for circadian alignment, journaling in isolation, exercise for bone loss).
+* **NASA HRP: Ongoing Research:** shapes the design note on monitoring.
+* **CSA radiation and CSA space science:** radiation tracked as a personal dose kept separate from the cabin reading, against NASA's 600 mSv career limit.
+* **NASA-STD-3001 and OCHMO technical briefs:** the CO2, radiation and cabin limits.
+
+## Run it
+You need Python 3.10 or newer.
+```bash
+python run_offline.py                 # nothing to install
+```
+Open http://127.0.0.1:8000 and press **Play**. The **Manual test** page (http://127.0.0.1:8000/manual) lets you type one astronaut's values yourself, or upload a whole mission as CSV.
+
+Optional real webcam (second terminal):
+```bash
+pip install opencv-python
+python camera/live_camera.py --astronaut B
+```
+No webcam: `python camera/demo_camera.py --band B` plays a "getting tired" sequence.
+
+Tests: `python tests/test_scenario.py`. Evaluation: `python tools/evaluate.py`.
+
+## Branches
+* **`v3`** (this branch): the astronaut enters his own data (keyboard, mouse, webcam); guidance cards for treatment and improvement; no wearables or hardware.
+* **`main` / `v2`**: the submitted version, which used simulated wearables (wristband, glucose patch) and ESP32 code.
+* **`v1-original`**: the first version, unchanged.
 
 ## Documentation
 | Document | What it answers |
 |---|---|
-| `docs/MODIFICATIONS_STATUS.md` | The development plan's items and what is done |
-| `docs/NASA_RESOURCES.md` | The challenge's NASA and CSA resources and how each one is used |
-| `docs/GAP_RESOLUTION.md` | All 35 issues from the gap analysis and what was done about each |
-| `docs/DOSE_AND_ALERT_PATHS.md` | Personal dose vs cabin radiation records, and the two alert paths (immediate safety vs slow deterioration) |
-| `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope; hardware status |
+| `docs/JUDGING_CRITERIA.md` | How NABD meets impact, validity, creativity, relevance and influence |
+| `docs/FEATURE_STATUS.md` | What is real, simulated, designed or out of scope |
 | `docs/THRESHOLDS.md` | Every threshold, with its source or "project assumption" |
-| `docs/RULES.md` | The full rule catalogue, decision flow, missing data, action policy |
-| `docs/DATA_DICTIONARY.md` | The numbered signal list and time model (generated from the code) |
-| `docs/SIMULATION.md` and `data/events.csv` | How the data is made and the labelled events |
-| `docs/SCENARIOS.md` | 13 scenarios, expected vs actual (generated from a run) |
-| `docs/MODEL_CARD.md` | The AI model and the evaluation on 20 new missions |
-| `docs/PRIVACY_SECURITY.md` | Camera data flow, who sees what, retention, threat model |
-| `docs/PERFORMANCE.md` | Speed, memory, offline proof |
+| `docs/RULES.md` | The rule catalogue and decision flow |
+| `docs/DOSE_AND_ALERT_PATHS.md` | Personal dose vs cabin radiation, and the two alert paths |
+| `docs/NASA_RESOURCES.md` | The challenge's NASA and CSA resources and how each one is used |
+| `docs/DATA_DICTIONARY.md` | The numbered signal list (generated from the code) |
+| `docs/SCENARIOS.md` | Scenarios, expected vs actual (generated from a run) |
+| `docs/MODEL_CARD.md` | The AI model |
+| `docs/PRIVACY_SECURITY.md` | Camera data flow, who sees what, retention |
 | `docs/TEST_REPORT.md` | Every automated test and its result |
-| `docs/ARCHITECTURE.md` | The architecture diagram |
 
-## Two versions of the code
-* **`main`**: the first complete version, kept unchanged on purpose as a stable reference (the version first shown to the team and mentors).
-* **`v2`** (this branch, **the submitted version**): everything in `main` plus the manual test page, the gap-analysis fixes, the NASA/CSA resources, the development plan items (immediate symptom alerts, clinical results, personal dosimetry, cabin temperature and humidity) and the real-device ingestion layer with the ESP32 code. Same demo story and same decisions as `main`; 42 tests.
-
-## Real devices (ingestion layer)
-Paired wristbands (`WB-A`, `WB-B`, `WB-C`) send readings to `POST /api/ingest` with their own device ID and timestamp. Without hardware, `python tools/fake_device.py --device WB-B --minutes 30 --fast --drop --dup --bad` acts like the ESP32; see the result at `/api/devices`. The ESP32 code is in `hardware/esp32_wristband/` (not yet tested on a board).
-
-## Manual test (branch `v2`)
-Open **http://127.0.0.1:8000/manual** (or click "Manual test" on the dashboard):
-* **Quick check:** type one astronaut's readings for the next day (after day 125) and see the decision and the full report at once. Add several days in a row to test streaks, leave a box empty to test a missing reading.
-* **Whole mission (CSV):** download the template, fill in your own crew and days (at least 15), upload, and see every day as a coloured grid; click a day for its report. Everything can be tested this way: swapped bands, crew-wide cabin events, slow drift, sensor faults.
-
-## Run it
-You need Python 3.10 or newer.
-
-**1. Start the server** (pick one)
-```bash
-python run_offline.py                 # nothing to install (good backup at the venue)
-# or
-pip install -r requirements.txt
-uvicorn backend.main:app --reload     # FastAPI version, API docs at /docs
-```
-Open http://127.0.0.1:8000 and press **Play**. Keep this terminal open.
-
-**2. Cabin camera (optional, in a second terminal)**
-```bash
-pip install opencv-python
-python camera/live_camera.py --band B
-```
-`--band` is the wristband nearest the camera (A = Amira, B = Ben, C = Chen). The first time a
-band is used, the camera learns that person's normal blinking over 60 seconds of face time and
-saves it in `camera/baselines/`; later sessions start measuring at once (`--reset-baseline` to
-learn again). The first run downloads OpenCV's face and eye detector files once (needs
-internet). Other options: `--camera 1`, `--calibrate 30`, `--no-window`, `--server URL`.
-Press `q` in the camera window to stop.
-
-**3. Backup demo camera (no webcam needed)**
-```bash
-python camera/demo_camera.py --band B
-```
-Plays an "astronaut getting tired" sequence (alert, then tired, then microsleeps) into the
-dashboard, using the same measuring code as the real camera. The dashboard labels it
-"demo camera, simulated". Use it if the webcam or the lighting fails at the venue.
-
-**Tests**
-```bash
-python tests/test_scenario.py         # or: python -m pytest tests
-```
-
-## Habitat devices (no tests needed)
-
-| Device | Measures | How often |
-|---|---|---|
-| Wristband | Heart rate, HRV, blood oxygen, temperature, sleep; also the astronaut's ID | Continuous |
-| Chest strap | Breathing rate | Continuous |
-| Cuffless blood pressure sensor | Blood pressure | Several times a day (weekly cuff check) |
-| Glucose patch | Blood sugar | Every few minutes (patch changed every 10-14 days) |
-| Cabin cameras (work areas) | Blinks, eye closure, microsleeps | All day, when a face is in view |
-| Voice and daily log (optional) | Mood, stress words | Daily |
-| Cabin sensors | CO2, radiation | Continuous |
-
-**Identification and privacy:** the wristband, not the face, tells each camera who is in front
-of it (in a real habitat, by its short-range ultra-wideband radio position). No face
-recognition, no video recorded or sent: only numbers leave the camera. Cameras are in work
-areas only.
-
-## How it works (4 layers)
-
-| Layer | File | What it does |
-|---|---|---|
-| 1. Inputs | `engine/simulate.py`, `engine/signals.py`, `camera/` | 13 personal signals from 6 devices, plus cabin CO2 and radiation. The webcam is real; the rest are simulated |
-| 2. Per-signal analysis | `engine/analysis.py` | Personal normal learned on days 1-14, then re-learned every 7 days from the last 30 days the astronaut was NORMAL. Flags a value 2.5+ SD (mild) or 3.5+ SD (strong) away in the unhealthy direction, counts days in a row, and checks absolute safety limits |
-| 3a. Decision (rules) | `engine/fusion.py` | Readable rules turn flags into a score and risk patterns, then NORMAL / WATCH / ACT, and list which rules fired |
-| 3b. AI double-check | `engine/anomaly.py` | Isolation Forest per astronaut, trained on their normal days, looking at all signals together |
-| 4. Output | `engine/monitor.py`, `engine/reminders.py`, `engine/report.py`, `engine/arabic.py`, `frontend/` | Body-system status, routine reminders, dashboard, daily report in English or Arabic |
-
-### Safety limits (checked whatever the personal normal)
-| Signal | Limit |
-|---|---|
-| Blood oxygen | below 92% |
-| Blood sugar | below 54 or above 250 mg/dL |
-| Blood pressure | systolic above 180 or diastolic above 120 mmHg |
-| Body temperature | above 38.0 °C |
-
-### Decision rules
-- Points: mild flag = 1, strong = 2, safety limit broken = 5, +1 if it lasts 3+ days.
-- **ACT** if a safety limit is broken, or the score is 8+ **and** a signal has been off for 2+ days, or combined physical and mental stress lasts 3+ days, or cabin CO2 is above 4.0 mmHg.
-- **WATCH** if the score is 3+, or a risk pattern is found: low oxygen (a strong drop), cabin air, possible fever, raised blood pressure, blood sugar out of range, combined stress, sleep debt, mental strain.
-- A single bad day can reach WATCH but never ACT. This avoids false alarms.
-
-### Data-integrity checks (`engine/integrity.py`)
-- **Swapped wristbands.** Each astronaut has their own normal, so if two astronauts swap bands, each band suddenly reads like the *other* person's normal. When both bands clearly fit each other's owner better than their own (sum of squared z-scores at most half, and at least 12 lower), the system raises **no health alarm**: it sets that day's wristband readings aside, never learns from that day, and asks both astronauts to check their band. No face recognition is needed. On the demo data it gives no false swap alert on any day; when we swap bands on purpose it finds 72-99% of swaps depending on how different the two astronauts' normals are, and misses rather than guesses when they are too similar.
-- **Slow drift (fixed anchor).** Re-learning every week could slowly absorb a decline that is too gradual to show on any single day. So the normal from days 1-14 is kept as a fixed anchor. If the current normal moves 1.5+ anchor standard deviations away in the unhealthy direction, the astronaut goes to WATCH and the flight surgeon is asked to review it. In a test where Amira's heart rate rises 0.08 bpm a day and her HRV falls 0.12 ms a day, it is caught on day 71, when no daily rule had raised a WATCH. It never fires on the demo data.
-
-### AI anomaly model (Isolation Forest)
-- One forest of 200 trees per astronaut, written in plain Python (no scikit-learn needed).
-- Trained on 500 plausible normal days made by resampling that astronaut's real normal days (the first 14 days, then up to 30 recent NORMAL days, re-trained every week) with small noise.
-- A day is *unusual* when its score is 0.09 above the most unusual baseline day, and *strong* 0.08 above that.
-- In the story days (100-125) it agrees with the rules on 71 of 78 crew-days, flags Ben from day 120 (more strongly as he declines), and never flags Amira. Over the 104 healthy days before, it raises only 3 single-day "unusual" notes and never an alarm.
-
-### Cabin camera, all-day mode
-- OpenCV finds the face, then looks for open eyes in its upper half. The eye detector doesn't find closed eyes, so "face but no eyes" means eyes closed.
-- `camera/blink_tracker.py` measures **blink rate**, **PERCLOS** (share of time the eyes are closed) and **long closures** (0.5 s or more, possible microsleep) over the last minute, for instant alerts.
-- It also keeps a **daily summary**: minutes in view, eye closure today, microsleeps today and the most tired hour.
-- When nobody faces the camera, it simply measures nothing. Calibration counts only face time.
-- **Two or more faces in view:** the camera can't be sure whose eyes it is watching, so it doesn't guess. It pauses ("PAUSED") until only one face remains. The cameras run all day, so a few paused moments don't change the daily picture.
-- **If the cameras can't see a face enough** (less than 30 minutes in a day, e.g. during a spacewalk or work in a module without cameras), the camera readings are not trusted. Fatigue is then estimated from the wristband (sleep, heart rate variability, resting heart rate), compared with that astronaut's own normal, and the dashboard and report say so ("not seen", "estimated from the wristband"). NASA also uses wrist actigraphy to assess sleep and alertness.
-- Smoothing: a closure only counts once it lasts 2 frames, so a single missed detection is not a fake blink.
-- `engine/live.py` compares readings with the saved personal normal: WATCH if blinking or eye closure rises, ACT for 2+ long closures in a minute.
-
-## The demo story (mission days 1-125)
-- **Days 1-14**: the system learns each astronaut's personal normal. After that it keeps learning: every 7 days it updates the normal from the last 30 days the astronaut was NORMAL, so slow changes in space are followed, but bad days are never learned as "normal".
-- **Camera gaps**: on days 60-61 Amira is on a spacewalk (no camera, wristband says she is fine); on day 122 Ben works away from the cameras for most of the day, and his fatigue is still caught from the wristband (65 vs his normal 33).
-- **Day 50**: Amira and Chen put on each other's wristbands by mistake. Without the swap check, Amira's band would show a strong HRV drop (Chen's normal is 14 ms lower). With it, both get "check your wristband" and no health alarm.
-- **Days 15-118**: everyone is healthy. Over these 104 days the system gives one single-day WATCH (Amira, day 48) and no ACT.
-- **Amira**: healthy throughout. The system stays quiet.
-- **Ben**: slow stress build-up from day 119: sleep drops, HRV falls, blood pressure, breathing and blood sugar rise, mood falls. WATCH on day 120, ACT from day 121. The AI model flags him from day 120, and its alert grows stronger as he declines.
-- **Chen**: one bad night on day 121 gives WATCH, then NORMAL again. No false emergency.
-- **Cabin**: the CO2 scrubber degrades on days 123-125. Everyone breathes a little faster, and the whole crew goes to WATCH and then ACT. The report warns that fatigue may be caused by CO2, not only by stress.
-
-## Dashboard
-- **Play** runs the mission day by day (quiet weeks fast, the story days from day 115 slowly); click a crew card for details. Drag the day slider to jump to any day 1-125.
-- **Body figure**: each body system (brain and mind, heart, lungs, metabolism, immune system, bones and muscles) is colored by status. Click one to see what it does, how space affects it, the spaceflight hazards behind it, today's readings and what to do. Bones and muscles show "no daily sensor" with exercise guidance.
-- **Cabin camera panel**: live readings filed under the wristband ID, plus today's fatigue summary.
-- **Habitat sensors**: every device, what it measures and whether it is live or simulated.
-- **Routine**: the few things the habitat still needs from the crew: a weekly blood pressure cuff check, a glucose patch change every 14 days, and the daily exercise session, plus the streak of days in Normal.
-- Daily report: **English / عربي**, **Copy**, and **Save as PDF**.
-
-## API
-| Endpoint | Returns |
-|---|---|
-| `GET /api/mission` | Mission days, crew, signals, devices, body systems |
-| `GET /api/status?day=N` | Whole crew: state, flags with reasons, patterns, rules, AI result, body systems, actions, trend |
-| `GET /api/astronaut/{id}?day=N` | One astronaut in full |
-| `GET /api/report/{id}?day=N&lang=en\|ar` | Daily report (plain text) |
-| `GET /api/series/{id}/{signal}` | All values of one signal plus the personal baseline |
-| `POST /api/live` | Cabin camera reading with its wristband ID (sent by `camera/live_camera.py`) |
-| `GET /api/live` | Latest reading per wristband with its state and reasons |
-
-## Honest limits (say these in the pitch)
-- **Not fully test-free:** cuffless blood pressure needs a regular cuff check, and the glucose patch is changed every 10-14 days.
-- **Most data is simulated.** Day-by-day in-flight astronaut data is not public. The webcam input is real.
-- Wrist temperature is an estimate of body temperature.
-- Thresholds are starting values, tuned on simulated data to avoid false alarms, not clinically validated. They are simple settings, so flight surgeons can calibrate them with real data.
-- The swap check can miss a swap between two astronauts whose normals are very similar; it never guesses in that case.
-- The camera needs a visible face and steady light. Spacecraft lighting is controlled, which helps. When it can't see a face long enough, fatigue falls back to a wristband estimate, which is less direct than eye measures.
-- This is decision support. The flight surgeon makes medical decisions.
+## Honest limits
+* The demo data is simulated: day-by-day astronaut data is not public. The webcam input is real.
+* The morning measurements take about 5 minutes of the astronaut's time.
+* Some thresholds are project assumptions, not clinically validated (`docs/THRESHOLDS.md`).
+* NABD supports the astronaut and the flight surgeon; it does not diagnose and never prescribes.
 
 ## License
 MIT. See [LICENSE](LICENSE).

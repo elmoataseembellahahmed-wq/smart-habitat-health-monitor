@@ -33,7 +33,7 @@
 
   <section class="cabin" id="cabin" aria-label="Cabin environment"></section>
 
-  <section class="live" id="live" aria-label="Live webcam"></section>
+  <section class="live" id="live" aria-label="Live camera"></section>
 
   <section class="crewwide" id="crewwide" aria-label="Crew-wide events"></section>
 
@@ -59,6 +59,10 @@
           </g>
           <!-- torso outline -->
           <rect class="torso" x="58" y="86" width="84" height="134" rx="26"/>
+          <!-- abdomen: metabolism -->
+          <g class="part" data-system="metabolism" tabindex="0" role="button" aria-label="Metabolism">
+            <ellipse cx="100" cy="186" rx="30" ry="22"/>
+          </g>
           <!-- lungs -->
           <g class="part" data-system="lungs" tabindex="0" role="button" aria-label="Lungs and breathing">
             <ellipse cx="80" cy="128" rx="15" ry="28"/>
@@ -99,6 +103,8 @@
         <div id="ai"></div>
         <h3>Suggested actions <span class="hint">(prototype list: mission-approved procedures and the flight surgeon decide)</span></h3>
         <ol id="actions"></ol>
+        <h3>Guidance: what it means and what to do <span class="hint">(based on NASA Human Research Program pages; no medicines or doses)</span></h3>
+        <div id="guidance"></div>
         <h3>Routine <span class="hint">(the few things the habitat still needs from you)</span></h3>
         <ul id="routine" class="plain"></ul>
       </div>
@@ -125,7 +131,7 @@
   </section>
 
   <section class="sensors" aria-label="Data sources">
-    <h3>Data sources <span class="hint">(no wearables or added hardware: webcam, keyboard and mouse at the workstation, plus a typed check-in)</span></h3>
+    <h3>Data sources <span class="hint">(no wearables: the astronaut types in the medical-kit measurements and the check-in; the laptop webcam adds fatigue)</span></h3>
     <div id="sensors" class="sensor-grid"></div>
   </section>
 

@@ -54,7 +54,7 @@ def build_report(member, day, decision, trend, cabin):
 
     faults = decision.get("sensor_faults") or []
     if faults or decision.get("self_report_skipped"):
-        lines.append("Input check (equipment, not health):")
+        lines.append("Entry check (entry mistakes, not health):")
         for f in faults:
             for msg in f["messages"]:
                 lines.append(f"  - {f['device_name']}: {msg}")
@@ -63,9 +63,9 @@ def build_report(member, day, decision, trend, cabin):
             lines.append("  - Daily diary skipped (optional): mood was not assessed today. That is fine.")
         lines.append("")
 
-    band = decision.get("session_check")
+    band = decision.get("profile_check")
     if band:
-        lines.append("Workstation login check:")
+        lines.append("Profile check:")
         lines.append(f"  - {band['message']}")
         lines.append("")
     if decision.get("drift"):
@@ -121,6 +121,15 @@ def build_report(member, day, decision, trend, cabin):
     for i, a in enumerate(decision["actions"], 1):
         lines.append(f"  {i}. [{TYPE[action_type(a)]}] {a}")
     lines.append("")
+
+    for g in decision.get("guidance") or []:
+        lines.append(f"Guidance: {g['title']} (NASA HRP: {g['hazard']}; {g['risk']})")
+        lines.append(f"  What it means: {g['means']}")
+        lines.append("  Do now: " + " ".join(g["do_now"]))
+        lines.append("  Improve and prevent: " + " ".join(g["improve"]))
+        lines.append("  Call the flight surgeon if: " + " ".join(g["call_if"]))
+        lines.append(f"  {g['medicine']}  Source: {g['source']}")
+        lines.append("")
 
     routine = decision.get("routine")
     if routine:

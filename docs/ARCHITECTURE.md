@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
   subgraph Devices["Habitat devices (simulated except the webcam)"]
-    W[Wristband + ID] --- C[Chest strap] --- BP[Cuffless BP] --- G[Glucose patch]
+    W[Typed measurements: pulse, SpO2, temperature, breathing, BP, blood sugar] --- C[Daily check-in: sleep, mood, symptoms]
     CAM[Cabin camera<br/>numbers only] --- V[Optional diary] --- CAB[Cabin CO2 + dosimeter]
   end
   Devices --> Q[1. Quality check<br/>missing / impossible / frozen]
