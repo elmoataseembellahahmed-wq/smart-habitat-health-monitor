@@ -1,14 +1,15 @@
 """Periodic clinical results, personal dosimetry and reported symptoms.
 
-Daily wearables cannot measure bone density, muscle mass or immune function. Those
+The workstation (webcam, keyboard, mouse) cannot measure bone density, muscle mass or immune function. Those
 come from periodic medical tests (for example a bone scan, a strength test, a blood
 test). This module lets those results be ENTERED or IMPORTED with their date, unit,
 source and the lab's own reference range, and shows them as a trend. It never infers
-them from the wristband, never calls a domain "normal" when no result exists, and
+them from the workstation signals, never calls a domain "normal" when no result exists, and
 leaves interpretation to the flight surgeon.
 
-It also keeps a PERSONAL radiation dose per astronaut (a dosimeter linked to the
-wristband ID), separate from the cabin radiation monitor, and the severe symptoms an
+It also keeps a PERSONAL radiation dose per astronaut (read from the crew dosimeter
+records the agency already keeps, linked to the astronaut's ID; NABD adds no hardware),
+separate from the cabin radiation reading, and the severe symptoms an
 astronaut can report, which trigger an immediate ACT without waiting for any streak.
 """
 
@@ -29,9 +30,8 @@ MEASURED, ESTIMATED, IMPORTED, SELF, INDIRECT, UNAVAILABLE = (
 
 DOMAIN_DATA = {
     "brain": [MEASURED, SELF],
-    "heart": [MEASURED],
-    "lungs": [MEASURED],
-    "metabolism": [MEASURED],
+    "heart": [ESTIMATED],          # webcam estimate (rPPG)
+    "lungs": [ESTIMATED],          # webcam estimate
     "immune": [INDIRECT],          # + IMPORTED when a lab result exists
     "bones": [INDIRECT],           # exercise adherence; + IMPORTED when a test result exists
 }

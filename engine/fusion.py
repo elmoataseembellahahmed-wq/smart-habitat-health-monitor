@@ -13,7 +13,7 @@ ACT_SCORE = 8
 MAX_ACTIONS = 7
 # Patterns that affect safety or the whole crew come first, so their actions are
 # never cut off the list.
-PATTERN_PRIORITY = ["low_oxygen", "cabin_air", "fever", "high_bp", "glucose",
+PATTERN_PRIORITY = ["fast_breathing", "cabin_air", "slowed_reactions", "unsteady_hand",
                     "stress_fatigue", "sleep_debt", "mental_strain"]
 
 PATTERNS = {
@@ -42,36 +42,29 @@ PATTERNS = {
             "Check in with the crew member in a short private conversation.",
         ],
     },
-    "low_oxygen": {
-        "title": "Low blood oxygen",
-        "explain": "Blood oxygen is below this astronaut's normal or below the safety limit.",
+    "fast_breathing": {
+        "title": "Fast breathing",
+        "explain": "Breathing rate has been clearly above this astronaut's normal for 2 or more days, or is above the safety limit.",
         "actions": [
-            "Re-measure blood oxygen now and check the sensor fit.",
-            "Check cabin air (CO2 and O2) and notify the flight surgeon.",
+            "Rest for 10 minutes, then re-check breathing with a manual count (breaths in 1 minute).",
+            "Check cabin air (CO2) and notify the flight surgeon if it stays high.",
         ],
     },
-    "high_bp": {
-        "title": "Raised blood pressure",
-        "explain": "Blood pressure has been above this astronaut's normal for 2 or more days, or is above the safety limit.",
+    "slowed_reactions": {
+        "title": "Slower reactions and focus",
+        "explain": "Reaction time and typing (speed or corrections) are worse than this astronaut's "
+                   "normal: an early sign of fatigue that matters for safety-critical tasks.",
         "actions": [
-            "Re-check blood pressure with the cuff to confirm the sensor reading.",
-            "Cut salt and caffeine today and add a rest break.",
+            "Postpone safety-critical tasks (robotics, docking, spacewalk preparation) until a repeat test is normal.",
+            "Repeat the 60-second reaction test after a rest break.",
         ],
     },
-    "glucose": {
-        "title": "Blood sugar out of range",
-        "explain": "Average blood sugar is outside this astronaut's normal range.",
+    "unsteady_hand": {
+        "title": "Unsteady hand",
+        "explain": "Hand steadiness on the mouse test has been clearly worse than this astronaut's normal for 2 or more days.",
         "actions": [
-            "Confirm with a finger-prick glucose check.",
-            "Review today's meals and snacks against the mission nutrition plan.",
-        ],
-    },
-    "fever": {
-        "title": "Possible fever",
-        "explain": "Body temperature is clearly above normal. This can be the first sign of an infection.",
-        "actions": [
-            "Confirm with a core (oral or ear) temperature check.",
-            "Rest, drink fluids and limit close contact with the crew until checked.",
+            "Repeat the steadiness test after rest; note caffeine, fatigue and any medication.",
+            "Tell the flight surgeon if it lasts more than a day.",
         ],
     },
     "cabin_air": {
@@ -85,19 +78,17 @@ PATTERNS = {
 }
 
 GENERAL_ACTIONS = {
-    "heart_rate": "Re-check resting heart rate after 10 minutes of rest; hydrate.",
-    "hrv": "Plan a lighter exercise session and extra recovery time.",
-    "spo2": "Re-measure blood oxygen and check the sensor fit.",
+    "heart_rate": "Rest 10 minutes, then check the pulse by hand to confirm the webcam estimate; hydrate.",
+    "breathing_rate": "Rest for 10 minutes and re-count breaths by hand; check cabin CO2.",
     "sleep_hours": "Protect tonight's sleep window.",
     "fatigue_score": "Take a short break before the next demanding task.",
     "blink_rate": "Take a screen break and rest the eyes.",
+    "typing_speed": "Take a short break; avoid long precision work until rested.",
+    "typing_errors": "Take a short break; double-check important commands before sending them.",
+    "reaction_time": "Repeat the 60-second reaction test after a rest break.",
+    "mouse_tremor": "Repeat the steadiness test after rest.",
     "mood_score": "Make time for a short check-in conversation.",
     "stress_words": "Make time for a short check-in conversation.",
-    "body_temp": "Re-check temperature later today.",
-    "breathing_rate": "Rest for 10 minutes and re-check breathing rate; check cabin CO2.",
-    "bp_systolic": "Re-check blood pressure with the cuff to confirm the sensor reading.",
-    "bp_diastolic": "Re-check blood pressure with the cuff to confirm the sensor reading.",
-    "glucose": "Confirm with a finger-prick glucose check.",
 }
 
 
@@ -107,9 +98,10 @@ def action_type(text):
     t = text.lower()
     if any(w in t for w in ("flight surgeon", "psychologist", "commander", "notify")):
         return "escalate"
-    if any(w in t for w in ("re-check", "re-measure", "confirm", "check-in", "check in")):
+    if any(w in t for w in ("re-check", "re-measure", "re-count", "repeat the", "by hand", "confirm",
+                            "check-in", "check in")):
         return "confirm"
-    if any(w in t for w in ("scrubber", "sensor", "wristband", "patch", "strap", "camera")):
+    if any(w in t for w in ("scrubber", "sensor", "webcam", "camera", "keyboard", "mouse")):
         return "equipment"
     if "no action" in t or "nothing to do" in t:
         return "none"
@@ -131,7 +123,7 @@ def fuse(signal_results, cabin_results):
             score += 1  # a problem that persists matters more than a one-off
 
     patterns = []
-    heart = _flagged(signal_results, "hrv", "heart_rate")
+    heart = _flagged(signal_results, "heart_rate")
     sleep = _flagged(signal_results, "sleep_hours")
     mind = _flagged(signal_results, "mood_score", "stress_words", "fatigue_score")
     if heart and sleep and mind:
@@ -141,21 +133,20 @@ def fuse(signal_results, cabin_results):
     mood = _flagged(signal_results, "mood_score", "stress_words")
     if len(mood) == 2 or _flagged(signal_results, "mood_score", "stress_words", min_streak=2):
         patterns.append(("mental_strain", mood))
-    # Blood oxygen barely moves, so a mild 1% dip is noted as a flag but only a strong
-    # drop (or the safety limit) raises the low-oxygen pattern and its urgent actions.
-    low_o2 = [s for s in _flagged(signal_results, "spo2") if s["level"] in ("strong", "critical")]
-    if low_o2:
-        patterns.append(("low_oxygen", low_o2))
-    bp = _flagged(signal_results, "bp_systolic", "bp_diastolic")
-    if _flagged(signal_results, "bp_systolic", "bp_diastolic", min_streak=2) or \
-            any(s["level"] == "critical" for s in bp):
-        patterns.append(("high_bp", bp))
-    sugar = _flagged(signal_results, "glucose")
-    if _flagged(signal_results, "glucose", min_streak=2) or any(s["level"] == "critical" for s in sugar):
-        patterns.append(("glucose", sugar))
-    temp = [s for s in _flagged(signal_results, "body_temp") if s["level"] in ("strong", "critical")]
-    if temp:
-        patterns.append(("fever", temp))
+    # One noisy webcam day is not a pattern: fast breathing needs 2+ days, or the safety limit.
+    breath = [s for s in _flagged(signal_results, "breathing_rate") if s["level"] in ("strong", "critical")
+              and (s["streak_days"] >= 2 or s.get("limit"))]
+    if breath:
+        patterns.append(("fast_breathing", breath))
+    # Reaction time plus a typing signal off together (or reaction time off 3+ days).
+    react = _flagged(signal_results, "reaction_time")
+    typing = _flagged(signal_results, "typing_speed", "typing_errors")
+    if (react and typing) or _flagged(signal_results, "reaction_time", min_streak=3):
+        patterns.append(("slowed_reactions", react + typing))
+    tremor = [s for s in _flagged(signal_results, "mouse_tremor")
+              if s["level"] in ("strong", "critical") and s["streak_days"] >= 2]
+    if tremor:
+        patterns.append(("unsteady_hand", tremor))
     cabin_flags = [c for c in cabin_results if c["level"] and c["signal"] == "co2"]
     if cabin_flags:
         patterns.append(("cabin_air", []))

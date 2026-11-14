@@ -26,7 +26,7 @@ uploaded = Upload()                # manual test: a whole mission from a CSV fil
 manual_lock = threading.Lock()
 LIVE_DIR = ROOT / "data" / "live"
 access.set_log_file(LIVE_DIR / "audit_log.jsonl")           # who viewed what, and crew actions
-devices = Ingest({"WB-A": "A", "WB-B": "B", "WB-C": "C"},   # paired wristbands (device -> astronaut)
+devices = Ingest({"WS-A": "A", "WS-B": "B", "WS-C": "C"},   # registered workstations (workstation -> astronaut)
                  log_path=LIVE_DIR / "ingest_log.jsonl")
 MAX_UPLOAD = 5_000_000
 

@@ -81,5 +81,5 @@ def view(entry, role):
     keep = {k: entry[k] for k in ("id", "name", "role", "state", "trend") if k in entry}
     return {**keep, "access": "crewmate", "restricted": True, "note": CREWMATE_NOTE,
             "score": None, "flags": [], "patterns": [], "signals": [], "rules_fired": [], "actions": [],
-            "systems": {}, "ai": None, "routine": None, "coverage": None, "drift": [], "band_check": None,
+            "systems": {}, "ai": None, "routine": None, "coverage": None, "drift": [], "session_check": None,
             "sensor_faults": []}

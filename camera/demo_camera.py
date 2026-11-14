@@ -44,7 +44,7 @@ def send(server, reading):
 
 def main():
     ap = argparse.ArgumentParser(description="Backup demo camera (no webcam needed)")
-    ap.add_argument("--band", default="B", help="wristband ID to report as (A, B or C)")
+    ap.add_argument("--band", default="B", help="astronaut ID to report as (A, B or C)")
     ap.add_argument("--phase", type=float, default=40.0, help="seconds per phase")
     ap.add_argument("--loop", action="store_true", help="repeat the sequence until stopped")
     ap.add_argument("--server", default="http://127.0.0.1:8000")
@@ -55,7 +55,7 @@ def main():
     # The demo person's saved normal, as if learned on earlier days.
     tracker = BlinkTracker(baseline={"blink_rate": 15.0, "perclos": 0.04})
     t, last_send, server_ok = 0.0, 0.0, None
-    print(f"Demo camera for wristband {band}: alert -> tired -> drowsy, {args.phase:.0f} s each. Ctrl+C to stop.")
+    print(f"Demo webcam for astronaut {band}: alert -> tired -> drowsy, {args.phase:.0f} s each. Ctrl+C to stop.")
 
     try:
         while True:

@@ -39,8 +39,8 @@ async function api(path, asText = false) {
 function missingWord(s) {
   if (s.private) return "private";
   if (s.fault === "skipped") return "skipped (optional)";
-  if (s.fault) return "unavailable (sensor check)";
-  if (s.untrusted) return "set aside (band check)";
+  if (s.fault) return "unavailable (input check)";
+  if (s.untrusted) return "set aside (login check)";
   return "not seen";
 }
 
@@ -101,7 +101,7 @@ function renderCrew(crew) {
         m.insufficient_data ? el("div", { class: "role conf-low" }, "Not enough data to confirm the status") : null,
         m.coverage && m.coverage.confidence !== "full"
           ? el("div", { class: `role conf-${m.coverage.confidence}` }, `Data: ${m.coverage.confidence} confidence`) : null,
-        m.sensor_faults?.length ? el("div", { class: "role conf-limited" }, `Sensor check: ${m.sensor_faults.map((f) => f.device_name).join(", ")}`) : null,
+        m.sensor_faults?.length ? el("div", { class: "role conf-limited" }, `Input check: ${m.sensor_faults.map((f) => f.device_name).join(", ")}`) : null,
         el("div", { class: "why" }, top));
     })
   );
@@ -158,7 +158,7 @@ function sparkline(series, upToDay, level) {
 
 // ---------- body figure ----------
 
-const STATUS_WORD = { normal: "Normal", watch: "Watch", act: "Act", info: "No daily sensor" };
+const STATUS_WORD = { normal: "Normal", watch: "Watch", act: "Act", info: "Not measured daily" };
 const STATUS_RANK = { act: 3, watch: 2, normal: 1, info: 0 };
 
 function renderBody(m) {
@@ -184,7 +184,7 @@ function renderBody(m) {
   const rows = sys.signals.map((k) => {
     const s = byKey[k], sm = state.mission.signals[k];
     return el("tr", { class: s.level || "" },
-      el("td", {}, el("div", {}, s.source === "wristband" ? "Fatigue estimate (wristband)" : s.name),
+      el("td", {}, el("div", {}, s.name),
         el("div", { class: "about" }, s.note || sm.about)),
       el("td", { class: "v" }, s.missing ? missingWord(s) : `${fmt(s.value, sm.decimals)} ${s.unit}`),
       el("td", { class: "about" }, s.baseline == null ? "" : `normal ${fmt(s.baseline, sm.decimals)}`));
@@ -222,7 +222,8 @@ function renderSensors(live) {
   $("sensors").replaceChildren(...Object.entries(devs).map(([key, d]) => {
     const isCam = key === "camera";
     const status = isCam && live && live.length
-      ? (live.some((x) => !x.simulated) ? "live webcam connected" : "demo camera running") : "simulated";
+      ? (live.some((x) => !x.simulated) ? "live webcam connected" : "demo webcam running")
+      : key === "cabin" ? "habitat feed (simulated)" : "simulated";
     return el("div", { class: "sensor" }, el("strong", {}, d.name),
       el("div", {}, d.measures), el("div", { class: "role" }, d.how_often),
       el("div", { class: `st ${status.includes("webcam") || status.includes("demo") ? "on" : ""}` }, status));
@@ -233,8 +234,8 @@ const ATYPE = { escalate: "escalate", equipment: "equipment", confirm: "confirm 
 function actionType(a) {
   const t = a.toLowerCase();
   if (/flight surgeon|psychologist|commander|notify/.test(t)) return "escalate";
-  if (/re-check|re-measure|confirm|check-in|check in/.test(t)) return "confirm";
-  if (/scrubber|sensor|wristband|patch|strap|camera/.test(t)) return "equipment";
+  if (/re-check|re-measure|re-count|repeat the|by hand|confirm|check-in|check in/.test(t)) return "confirm";
+  if (/scrubber|sensor|webcam|camera|keyboard|mouse/.test(t)) return "equipment";
   if (/no action|nothing to do/.test(t)) return "none";
   return "self-care";
 }
@@ -242,7 +243,7 @@ function actionType(a) {
 // The astronaut's first view: what changed, how sure the system is, what to do, when to escalate.
 function renderSummary(m) {
   if (m.restricted) { $("summary").replaceChildren(el("div", {}, el("b", {}, "Shared with crewmates"), m.note)); return; }
-  const changed = m.band_check ? "Wristband check: the band seems swapped. No health alarm."
+  const changed = m.session_check ? "Login check: someone else seems to have used this login. No health alarm."
     : ((m.patterns.find((p) => p.id === "stress_fatigue") || m.patterns[0])?.title || (m.flags[0] ? `${m.flags.length} signal(s) outside your normal` : "Nothing: all within your normal."));
   const cov = m.coverage;
   const next = m.actions[0] || "No action needed.";
@@ -275,10 +276,10 @@ function renderDetail(m) {
     (f) => el("li", {}, el("span", { class: `lvl ${f.level}` }, f.level), f.reason),
     "All signals are within this astronaut's normal range.");
   listOrEmpty("rules", m.rules_fired, (r) => el("li", {}, r), "No rule fired: state is NORMAL.");
-  // Data-integrity notes: a swapped wristband, or a slow drift since the start of the mission.
+  // Data-integrity notes: a swapped workstation login, or a slow drift since the start of the mission.
   const extra = [];
   (m.sensor_faults || []).forEach((f) => extra.push(el("li", { class: "integrity" },
-    el("strong", {}, `Sensor check (${f.device_name}): `), f.messages.join(" "), " ", f.action)));
+    el("strong", {}, `Input check (${f.device_name}): `), f.messages.join(" "), " ", f.action)));
   if (m.reported_symptoms?.length) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Reported symptom: "),
     `${m.reported_symptoms.join(", ")}: immediate ACT.`));
   if (m.insufficient_data) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Not enough data: "),
@@ -290,7 +291,7 @@ function renderDetail(m) {
   if (m.cabin_radiation) extra.push(el("li", {}, el("strong", {}, "Cabin radiation (environment): "), m.cabin_radiation.note));
   if (m.self_report_skipped) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Diary: "),
     "skipped today (optional), so mood was not assessed."));
-  if (m.band_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Wristband check: "), m.band_check.message));
+  if (m.session_check) extra.push(el("li", { class: "integrity" }, el("strong", {}, "Login check: "), m.session_check.message));
   (m.drift || []).forEach((x) => extra.push(el("li", { class: "integrity" }, el("strong", {}, "Slow drift: "), x.reason)));
   if (extra.length) $("reasons").prepend(...extra);
   const ai = m.ai;
@@ -326,7 +327,7 @@ function renderDetail(m) {
       const meta = state.mission.signals[s.signal];
       const ser = state.series[m.id]?.[s.signal];
       return el("div", { class: `sig ${s.level ? "flag-" + s.level : ""}` },
-        el("div", { class: "t" }, `${s.source === "wristband" ? "Fatigue estimate" : s.name} - ${state.mission.devices[s.device].name}`),
+        el("div", { class: "t" }, `${s.name} - ${state.mission.devices[s.device].name}`),
         s.note ? el("div", { class: "about" }, s.note) : null,
         el("div", { class: "v" }, s.missing ? missingWord(s) : `${fmt(s.value, meta.decimals)} ${s.unit}`,
           s.baseline == null ? null : el("span", { class: "role" }, `  normal ${fmt(s.baseline, meta.decimals)}`)),
@@ -372,11 +373,11 @@ async function pollLive() {
   if (!r.connected) {
     box.className = "live";
     box.replaceChildren(
-      el("div", { class: "live-head" }, el("strong", {}, "Cabin camera"),
+      el("div", { class: "live-head" }, el("strong", {}, "Workstation webcam"),
         el("span", { class: "role" }, "not connected")),
       el("div", { class: "role", style: "margin-top:6px" },
-        "Real input from your webcam: run ", el("code", {}, "python camera/live_camera.py --band B"),
-        " in a second terminal while this server is running. --band is the wristband near the camera."));
+        "Real input from your webcam: run ", el("code", {}, "python camera/live_camera.py --astronaut B"),
+        " in a second terminal while this server is running. --astronaut is who is logged in at this workstation."));
     return;
   }
   // One block per camera that is reporting (normally one in the demo).
@@ -391,7 +392,7 @@ async function pollLive() {
     return el("div", { class: "live-item" },
       el("div", { class: "live-head" },
         el("span", { class: "live-dot", title: "live" }),
-        el("strong", {}, `Cabin camera · wristband ${x.band} → ${x.astronaut} ${x.simulated ? "(demo camera, simulated)" : "(real webcam)"}`),
+        el("strong", {}, `Workstation webcam · login ${x.band} → ${x.astronaut} ${x.simulated ? "(demo webcam, simulated)" : "(real webcam)"}`),
         el("span", { class: `badge ${x.state.replace(/ /g, "")}` }, x.state)),
       el("div", { class: "live-stats" },
         stat("blinks per minute", x.blink_rate ?? "-"),

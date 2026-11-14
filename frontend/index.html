@@ -33,7 +33,7 @@
 
   <section class="cabin" id="cabin" aria-label="Cabin environment"></section>
 
-  <section class="live" id="live" aria-label="Live camera"></section>
+  <section class="live" id="live" aria-label="Live webcam"></section>
 
   <section class="crewwide" id="crewwide" aria-label="Crew-wide events"></section>
 
@@ -59,10 +59,6 @@
           </g>
           <!-- torso outline -->
           <rect class="torso" x="58" y="86" width="84" height="134" rx="26"/>
-          <!-- abdomen: metabolism -->
-          <g class="part" data-system="metabolism" tabindex="0" role="button" aria-label="Metabolism">
-            <ellipse cx="100" cy="186" rx="30" ry="22"/>
-          </g>
           <!-- lungs -->
           <g class="part" data-system="lungs" tabindex="0" role="button" aria-label="Lungs and breathing">
             <ellipse cx="80" cy="128" rx="15" ry="28"/>
@@ -85,7 +81,7 @@
           <span><i class="dot normal"></i>Normal</span>
           <span><i class="dot watch"></i>Watch</span>
           <span><i class="dot act"></i>Act</span>
-          <span><i class="dot info"></i>No sensor</span>
+          <span><i class="dot info"></i>Not measured daily</span>
         </div>
       </div>
       <div class="body-info" id="bodyInfo"></div>
@@ -128,8 +124,8 @@
     </div>
   </section>
 
-  <section class="sensors" aria-label="Habitat sensors">
-    <h3>Habitat sensors <span class="hint">(no tests: everything is measured during normal work and sleep)</span></h3>
+  <section class="sensors" aria-label="Data sources">
+    <h3>Data sources <span class="hint">(no wearables or added hardware: webcam, keyboard and mouse at the workstation, plus a typed check-in)</span></h3>
     <div id="sensors" class="sensor-grid"></div>
   </section>
 

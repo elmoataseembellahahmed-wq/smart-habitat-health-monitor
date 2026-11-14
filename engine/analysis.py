@@ -77,7 +77,7 @@ def analyse_signal(key, day, days, baseline):
     if broken:
         level = "critical"
         if meta.get("confirm_first"):
-            # An estimate (wrist skin temperature) is a warning to confirm, never an emergency alone.
+            # An estimate (webcam heart or breathing rate) is a warning to confirm by hand, never an emergency alone.
             level = "strong"
 
     result = {
@@ -106,7 +106,7 @@ def analyse_signal(key, day, days, baseline):
         if broken:
             text += f"; {broken[0]} the safety limit of {broken[1]:g} {meta['unit']}"
             if meta.get("confirm_first"):
-                text += " (an estimate: confirm with a core temperature check before acting)"
+                text += " (a webcam estimate: confirm now by checking the pulse or counting breaths by hand)"
         result["reason"] = text + "."
     return result
 

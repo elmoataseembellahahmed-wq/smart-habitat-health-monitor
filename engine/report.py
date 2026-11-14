@@ -54,7 +54,7 @@ def build_report(member, day, decision, trend, cabin):
 
     faults = decision.get("sensor_faults") or []
     if faults or decision.get("self_report_skipped"):
-        lines.append("Sensor check (equipment, not health):")
+        lines.append("Input check (equipment, not health):")
         for f in faults:
             for msg in f["messages"]:
                 lines.append(f"  - {f['device_name']}: {msg}")
@@ -63,9 +63,9 @@ def build_report(member, day, decision, trend, cabin):
             lines.append("  - Daily diary skipped (optional): mood was not assessed today. That is fine.")
         lines.append("")
 
-    band = decision.get("band_check")
+    band = decision.get("session_check")
     if band:
-        lines.append("Wristband check:")
+        lines.append("Workstation login check:")
         lines.append(f"  - {band['message']}")
         lines.append("")
     if decision.get("drift"):

@@ -1,13 +1,15 @@
-"""Data ingestion layer for real devices (for example the ESP32 wristband).
+"""Data ingestion layer for the workstation app (webcam, keyboard and mouse measurements).
 
-Every sample a device sends carries its device ID and its own timestamp. Before any
-reading can be used, this layer:
+The NABD app on each crew workstation measures typing, the mouse reaction test and the
+webcam signals locally (only numbers leave the app: never video, never the text typed)
+and sends samples here. Every sample carries the workstation ID and its own timestamp.
+Before any reading can be used, this layer:
 
-  * accepts only PAIRED devices (device ID -> astronaut ID), so data is filed by the
-    device, never by a face or a name typed in;
-  * rejects a timestamp too far in the future (bad device clock);
-  * drops DUPLICATES (same device and timestamp: a resend after a lost link);
-  * accepts LATE samples (sent from the device's buffer after a link loss) and files
+  * accepts only REGISTERED workstations (workstation ID -> astronaut ID), so data is
+    filed by the workstation login, never by a face or a name typed in;
+  * rejects a timestamp too far in the future (bad workstation clock);
+  * drops DUPLICATES (same workstation and timestamp: a resend after a lost link);
+  * accepts LATE samples (sent from the app's buffer after a link loss) and files
     them on the day they were measured;
   * drops physically impossible values (same plausible ranges as engine/quality.py);
   * writes every accepted sample to an append-only local file, so nothing is lost on
@@ -26,7 +28,7 @@ from pathlib import Path
 
 from .quality import VALID
 
-MAX_FUTURE_S = 300        # a timestamp more than 5 min ahead = bad device clock
+MAX_FUTURE_S = 300        # a timestamp more than 5 min ahead = bad workstation clock
 GAP_WARN_MIN = 60         # a gap longer than this in one day = possible packet loss
 NOISE_WARN = 0.15         # coefficient of variation above this = noisy signal
 
@@ -43,7 +45,7 @@ def _ts(value):
 
 class Ingest:
     def __init__(self, pairing, log_path=None, mission_start=None, now=time.time):
-        """pairing: {device_id: astronaut_id}. mission_start: epoch seconds of day 1."""
+        """pairing: {workstation_id: astronaut_id}. mission_start: epoch seconds of day 1."""
         self.pairing = dict(pairing)
         self.now = now
         # Default: day 1 starts at midnight UTC today, so mission days follow calendar days.
@@ -63,16 +65,16 @@ class Ingest:
         return int((ts - self.mission_start) // 86400) + 1
 
     def accept(self, msg):
-        """Take one message from a device. Returns {"status": accepted|duplicate|rejected, ...}."""
+        """Take one message from a workstation. Returns {"status": accepted|duplicate|rejected, ...}."""
         dev = str(msg.get("device_id", ""))
         if dev not in self.pairing:
-            return self._reject(msg, "unknown device: pair it with an astronaut first")
+            return self._reject(msg, "unknown workstation: register it to an astronaut first")
         try:
             ts = _ts(msg["timestamp"])
         except (KeyError, ValueError, TypeError):
             return self._reject(msg, "missing or unreadable timestamp")
         if ts > self.now() + MAX_FUTURE_S:
-            return self._reject(msg, "timestamp is in the future: check the device clock")
+            return self._reject(msg, "timestamp is in the future: check the workstation clock")
         if (dev, ts) in self.samples:
             return {"status": "duplicate", "device_id": dev, "ts": ts}
         readings, dropped = {}, []
@@ -87,7 +89,7 @@ class Ingest:
                 continue
             lo, hi = VALID[key]
             if not lo <= v <= hi:
-                dropped.append(f"{key}: {v:g} outside {lo:g}-{hi:g} (sensor error)")
+                dropped.append(f"{key}: {v:g} outside {lo:g}-{hi:g} (input error)")
                 continue
             readings[key] = v
         if not readings:
@@ -133,7 +135,7 @@ class Ingest:
                 "late_samples": sum(1 for s in rows if s["late"])}
 
     def devices(self):
-        """Status of every paired device: last seen, samples, today's quality."""
+        """Status of every registered workstation: last seen, samples, today's quality."""
         out = []
         for dev, aid in self.pairing.items():
             mine = [s for s in self.samples.values() if s["device_id"] == dev]

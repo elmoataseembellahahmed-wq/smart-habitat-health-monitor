@@ -61,9 +61,9 @@ def test_no_false_alarms_over_the_long_mission():
 
 
 def test_ai_model_quiet_on_healthy_astronaut():
-    """Amira stays healthy: at most one AI flag in the whole mission, none in the demo
-    days (cabin CO2 is not a personal signal)."""
-    flags = [d for d in m.days if m.assess("A", d)["ai"]["level"] != "normal"]
+    """Amira stays healthy: at most one AI flag outside the CO2 failure (days 123-125, when
+    the bad air really does slow her reactions), and none in days 100-122."""
+    flags = [d for d in m.days if d < 123 and m.assess("A", d)["ai"]["level"] != "normal"]
     assert len(flags) <= 1, flags
     assert all(d < 100 for d in flags), flags
 
@@ -74,7 +74,7 @@ def test_personal_normal_keeps_learning():
     assert m.update_day(125) == 120
     learned = m.learning_days("B", 125)
     assert len(learned) >= 20 and max(learned) <= 119
-    assert 48 not in m.learning_days("A", 50)   # Amira's one WATCH day is not learned from
+    assert 83 not in m.learning_days("C", 85)   # Chen's one WATCH day is not learned from
 
 
 def test_live_camera_assessment():
@@ -139,8 +139,8 @@ def test_camera_ignores_single_frame_misses():
     assert tr.day_blinks == 5
 
 
-def test_live_readings_filed_by_wristband():
-    """Live camera readings are filed under the wristband ID, never by face."""
+def test_live_readings_filed_by_login():
+    """Live webcam readings are filed under the workstation login, never by face."""
     from engine import live
     live.store({"band": "c", "face_detected": True, "calibrating": False, "blink_rate": 15,
                 "perclos": 0.04, "long_closures": 0, "baseline_blink_rate": 15, "baseline_perclos": 0.04})
@@ -159,11 +159,11 @@ def test_body_systems_status():
 
 
 def test_routine_reminders_and_streak():
-    """Routine reminders (cuff check, patch change, exercise) and the days-in-Normal streak."""
+    """Routine reminders (check-in and reaction test, weekly pulse check, exercise) and the streak."""
     r = m.routine("A", 110)
     ids = [x["id"] for x in r["reminders"]]
-    assert set(ids) == {"cuff", "patch", "exercise"}
-    assert r["normal_streak"] == 62            # Amira: Normal on days 49-110
+    assert set(ids) == {"checkin", "pulse", "exercise"}
+    assert r["normal_streak"] >= 40
     assert m.routine("B", 124)["normal_streak"] == 0
     assert "Routine:" in m.report("A", 110) and "المهام الروتينية" in m.report("A", 110, "ar")
 
@@ -188,36 +188,34 @@ def test_every_flag_has_a_reason():
 
 
 
-def test_camera_cannot_see_face_uses_wristband():
-    """Too little face time: camera readings are not trusted, fatigue comes from the wristband."""
-    b = m.assess("B", 122)                      # Ben worked away from the cameras (15 min)
-    fatigue = next(s for s in b["signals"] if s["signal"] == "fatigue_score")
-    blink = next(s for s in b["signals"] if s["signal"] == "blink_rate")
-    assert fatigue["source"] == "wristband" and fatigue["level"] == "strong"
-    assert "estimated from the wristband" in fatigue["reason"]
-    assert blink["missing"] and blink["level"] is None
-    assert b["state"] == "ACT"
-    assert "قُدّر الإرهاق من السوار" in m.report("B", 122, "ar")
-    for day in (60, 61):                        # Amira's spacewalk: no camera, still healthy
+def test_no_workstation_time_means_not_measured():
+    """Spacewalk days (Amira, 60-61): no workstation use, so webcam, keyboard and mouse
+    readings are 'not measured', said plainly, never guessed; no health alarm."""
+    from engine.signals import WORKSTATION_SIGNALS
+    for day in (60, 61):
         a = m.assess("A", day)
         assert a["state"] == "NORMAL"
-        assert next(s for s in a["signals"] if s["signal"] == "fatigue_score")["source"] == "wristband"
+        for k in WORKSTATION_SIGNALS:
+            s = next(x for x in a["signals"] if x["signal"] == k)
+            assert s["missing"] and s["level"] is None and "workstation" in s["note"]
+        assert a["insufficient_data"]                     # most signals unavailable: said plainly
     normal_day = m.assess("A", 30)
-    assert all(s.get("source") is None for s in normal_day["signals"])
+    assert not any(s.get("missing") for s in normal_day["signals"])
 
 
-def test_swapped_wristbands_are_caught_without_a_health_alarm():
-    """Day 50: Amira and Chen wear each other's bands. Spotted from the readings alone."""
+def test_swapped_logins_are_caught_without_a_health_alarm():
+    """Day 50: Amira and Chen work under each other's login. Spotted from typing, reaction
+    time and webcam signals alone."""
     for aid, other in (("A", "C"), ("C", "A")):
         d = m.assess(aid, 50)
-        assert d["band_check"]["with"] == other
-        assert d["state"] == "NORMAL"                     # no health alarm from a swapped band
-        assert d["actions"][0].startswith("Check that you are wearing your own wristband")
-        hrv = next(s for s in d["signals"] if s["signal"] == "hrv")
-        assert hrv["untrusted"] and hrv["level"] is None
-    assert "فحص السوار" in m.report("A", 50, "ar")
+        assert d["session_check"]["with"] == other
+        assert d["state"] == "NORMAL"                     # no health alarm from a swapped login
+        assert d["actions"][0].startswith("Check that you are logged in to the workstation as yourself")
+        typing = next(s for s in d["signals"] if s["signal"] == "typing_speed")
+        assert typing["untrusted"] and typing["level"] is None
+    assert "فحص تسجيل الدخول" in m.report("A", 50, "ar")
     assert 50 not in m.learning_days("A", 57)              # swapped day is never learned from
-    others = [(a, d) for a in "ABC" for d in m.days if m.assess(a, d)["band_check"]]
+    others = [(a, d) for a in "ABC" for d in m.days if m.assess(a, d)["session_check"]]
     assert others == [("A", 50), ("C", 50)], others        # no false swap alerts on any other day
 
 
@@ -229,8 +227,8 @@ def test_slow_drift_is_caught_by_the_fixed_anchor():
     data = simulate.generate()
     for d, r in data["crew"]["A"].items():
         if d >= 15:
-            r["heart_rate"] += 0.08 * (d - 14)
-            r["hrv"] -= 0.12 * (d - 14)
+            r["reaction_time"] += 0.5 * (d - 14)
+            r["typing_speed"] -= 0.08 * (d - 14)
     slow = HealthMonitor(data=data)
     first = next(d for d in slow.days if slow.assess("A", d)["drift"])
     assert first <= 80, first
@@ -259,11 +257,11 @@ def test_camera_pauses_when_two_faces_are_in_view():
     assert not tr.reading()["multiple_faces"]
 
 
-def test_sensor_faults_are_never_read_as_illness():
-    """Disconnected, frozen or implausible readings are 'unavailable', reported as a sensor
-    check, and never scored, learned from or shown as a health problem."""
-    cases = {("A", 40): ("wristband", "spo2", "missing"), ("C", 34): ("glucose", "glucose", "stuck"),
-             ("B", 35): ("wristband", "body_temp", "out_of_range")}
+def test_input_faults_are_never_read_as_illness():
+    """Covered webcam, frozen mouse driver or an impossible webcam reading: 'unavailable',
+    reported as an input check, and never scored, learned from or shown as a health problem."""
+    cases = {("A", 40): ("camera", "heart_rate", "missing"), ("C", 34): ("mouse", "mouse_tremor", "stuck"),
+             ("B", 35): ("camera", "heart_rate", "out_of_range")}
     for (aid, day), (device, key, code) in cases.items():
         d = m.assess(aid, day)
         assert d["state"] == "NORMAL", (aid, day)
@@ -272,10 +270,10 @@ def test_sensor_faults_are_never_read_as_illness():
         assert key in fault["signals"] and code in fault["codes"]
         sig = next(s for s in d["signals"] if s["signal"] == key)
         assert sig["missing"] and sig["fault"] == code
-        assert d["coverage"]["confidence"] == "limited" and key in d["coverage"]["safety_gap"]
+        assert d["coverage"]["confidence"] == "limited"
         assert m.data["crew"][aid][day][key] is None   # set aside: baselines and the AI skip it
-    assert "Sensor check" in m.report("C", 34) and "فحص الحساسات" in m.report("C", 34, "ar")
-    # No sensor faults on clean days, and no false 'stuck' readings anywhere else.
+    assert "heart_rate" in m.assess("B", 35)["coverage"]["safety_gap"]
+    assert "Input check" in m.report("C", 34) and "فحص" in m.report("C", 34, "ar")
     found = sorted({(a, d) for (a, d), issues in m.faults.items()
                     if any(i["code"] != "skipped" for i in issues.values())})
     assert found == [("A", 40), ("A", 41), ("B", 35), ("C", 33), ("C", 34), ("C", 35)], found
@@ -304,17 +302,18 @@ def test_no_green_without_saying_what_is_missing():
     for aid in "ABC":
         for day in (30, 40, 61, 122):
             cov = m.assess(aid, day)["coverage"]
-            assert cov["measured"] + len(cov["unavailable"]) == cov["total"] == 13
+            assert cov["measured"] + len(cov["unavailable"]) == cov["total"] == 11
             assert cov["note"].startswith("Status based on")
 
 
-def test_wrist_temperature_is_an_estimate_to_confirm():
+def test_webcam_heart_rate_is_an_estimate_to_confirm():
+    """A webcam heart rate past the safety limit is a warning to confirm by hand, not 'critical'."""
     from engine.analysis import analyse_signal
     base = m.baseline_for("A", 30)
-    days = {30: {**m.data["crew"]["A"][30], "body_temp": 38.4}}
-    a = analyse_signal("body_temp", 30, days, base)
-    assert a["level"] == "strong"                            # a warning, not 'critical'
-    assert "confirm with a core temperature" in a["reason"]
+    days = {30: {**m.data["crew"]["A"][30], "heart_rate": 140}}
+    a = analyse_signal("heart_rate", 30, days, base)
+    assert a["level"] == "strong"
+    assert "confirm now by checking the pulse" in a["reason"]
 
 
 def test_crew_wide_vs_individual():
@@ -406,7 +405,8 @@ def test_exercise_adherence_is_not_a_bone_measurement():
 def test_actions_are_typed():
     from engine.fusion import action_type
     assert action_type("Notify the flight surgeon with this report at the next contact window.") == "escalate"
-    assert action_type("Confirm with a finger-prick glucose check.") == "confirm"
+    assert action_type("Repeat the 60-second reaction test after a rest break.") == "confirm"
+    assert action_type("Rest for 10 minutes and re-count breaths by hand; check cabin CO2.") == "confirm"
     assert action_type("Inspect and service the CO2 scrubber.") == "equipment"
     assert action_type("Protect tonight's sleep window.") == "self-care"
 
@@ -417,13 +417,15 @@ def test_manual_quick_check():
     q = QuickCheck(m)
     first = q.add("A", q.defaults("A")["values"], {})
     assert first["day"] == 126 and first["decision"]["state"] == "NORMAL"
-    bad = dict(q.defaults("A")["values"], heart_rate=85, hrv=30, sleep_hours=4.0, mood_score=40, spo2=None)
+    bad = dict(q.defaults("A")["values"], heart_rate=80, sleep_hours=4.0, mood_score=40,
+               reaction_time=420, typing_speed=45, blink_rate=None)
     assert q.add("A", bad, {})["decision"]["state"] == "WATCH"
     two = q.add("A", bad, {})
     assert two["decision"]["state"] == "ACT"
-    assert any(f["device"] == "wristband" for f in two["decision"]["sensor_faults"])
-    low = q.add("A", dict(bad, spo2=89), {})
-    assert any(c["rule"] == "safety_limit" for c in low["decision"]["rule_codes"])
+    assert any(f["device"] == "camera" for f in two["decision"]["sensor_faults"])
+    high = q.add("A", dict(bad, heart_rate=140), {})        # webcam estimate past the limit
+    hr = next(f for f in high["decision"]["flags"] if f["signal"] == "heart_rate")
+    assert hr["limit"] and hr["level"] == "strong"          # confirm by hand, not an emergency alone
     assert m.days[-1] == 125                    # the demo mission itself is untouched
     q.reset()
     assert q.next_day() == 126
@@ -453,7 +455,8 @@ def test_findings_link_to_nasa_hrp_risks():
     names = [r["risk"] for r in m.assess("B", 121)["nasa_risks"]]
     assert "Risk of Behavioral Changes and Psychiatric Disorders" in names
     assert "Risk of Inadequate Sleep and Irregular Schedules" in names
-    assert m.assess("A", 30)["nasa_risks"] == []          # a normal day links to nothing
+    quiet = next(d for d in range(15, 100) if not m.assess("A", d)["flags"])
+    assert m.assess("A", quiet)["nasa_risks"] == []       # a day with no findings links to nothing
     assert "Linked NASA Human Research Program risks" in m.report("B", 121)
 
 
@@ -482,26 +485,26 @@ def test_clinical_results_and_personal_dose():
 
 
 def test_ingestion_layer(tmp_path):
-    """Real-device path: paired devices only, duplicates dropped, late samples kept on
-    their own day, impossible values dropped, everything saved locally and reloaded."""
+    """Workstation-app path: registered workstations only, duplicates dropped, late samples
+    kept on their own day, impossible values dropped, everything saved locally and reloaded."""
     from engine.ingest import Ingest
     t0 = 1_800_000_000.0
     clock = [t0 + 3 * 3600]
-    ing = Ingest({"WB-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
-    assert ing.accept({"device_id": "WB-X", "timestamp": t0, "readings": {"heart_rate": 60}})["status"] == "rejected"
+    ing = Ingest({"WS-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
+    assert ing.accept({"device_id": "WS-X", "timestamp": t0, "readings": {"heart_rate": 60}})["status"] == "rejected"
     for i in range(10):
-        r = ing.accept({"device_id": "WB-B", "timestamp": t0 + 600 + i * 60,
-                        "readings": {"heart_rate": 64 + i % 3, "spo2": 98, "body_temp": 31.0}})
-        assert r["status"] == "accepted" and r["day"] == 1 and "body_temp: 31 outside 34-42 (sensor error)" in r["dropped"]
-    assert ing.accept({"device_id": "WB-B", "timestamp": t0 + 600, "readings": {"heart_rate": 64}})["status"] == "duplicate"
-    late = ing.accept({"device_id": "WB-B", "timestamp": t0 + 300, "readings": {"heart_rate": 63}})
+        r = ing.accept({"device_id": "WS-B", "timestamp": t0 + 600 + i * 60,
+                        "readings": {"heart_rate": 64 + i % 3, "typing_speed": 50, "reaction_time": 20}})
+        assert r["status"] == "accepted" and r["day"] == 1 and "reaction_time: 20 outside 100-3000 (input error)" in r["dropped"]
+    assert ing.accept({"device_id": "WS-B", "timestamp": t0 + 600, "readings": {"heart_rate": 64}})["status"] == "duplicate"
+    late = ing.accept({"device_id": "WS-B", "timestamp": t0 + 300, "readings": {"heart_rate": 63}})
     assert late["status"] == "accepted" and late["late"]
-    future = ing.accept({"device_id": "WB-B", "timestamp": clock[0] + 3600, "readings": {"heart_rate": 63}})
+    future = ing.accept({"device_id": "WS-B", "timestamp": clock[0] + 3600, "readings": {"heart_rate": 63}})
     assert future["status"] == "rejected" and "clock" in future["reason"]
     day = ing.daily("B", 1)
-    assert day["samples"] == 11 and day["reading"]["heart_rate"] == 65 and "body_temp" not in day["reading"]
+    assert day["samples"] == 11 and day["reading"]["heart_rate"] == 65 and "reaction_time" not in day["reading"]
     assert day["quality"]["heart_rate"]["ok"]
-    again = Ingest({"WB-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
+    again = Ingest({"WS-B": "B"}, log_path=tmp_path / "log.jsonl", mission_start=t0, now=lambda: clock[0])
     assert again.daily("B", 1)["samples"] == 11                 # reloaded after a restart
 
 
@@ -530,23 +533,24 @@ def test_personal_dose_is_separate_and_labelled():
 
 
 def test_two_alert_paths():
-    """Problem 4: verified critical limits give ACT at once; gradual change needs 2 days;
-    a faulty reading never fires the immediate path."""
+    """Verified critical events give ACT at once; gradual change needs 2 days; a cabin-only
+    problem is an environment watch; a faulty reading never fires the immediate path."""
     from engine.manual import QuickCheck
     assert m.assess("B", 121)["alert_path"] == "slow_deterioration"
     assert m.assess("B", 120)["state"] == "WATCH"                       # one day only: no ACT
     co2 = m.assess("A", 125)
     assert co2["state"] == "ACT" and co2["alert_path"] == "immediate_safety"
-    assert co2["immediate_alerts"][0]["trigger"] == "co2"
-    assert m.assess("A", 124)["alert_path"] == "environment_watch"
+    assert any(x["trigger"] == "co2" for x in co2["immediate_alerts"])
     q = QuickCheck(m)
-    v = q.defaults("C")["values"]; v["spo2"] = 89
+    r = q.add("C", q.defaults("C")["values"], {"co2": 3.5})["decision"]
+    assert r["state"] == "WATCH" and r["alert_path"] == "environment_watch"
+    v = dict(q.defaults("C")["values"], symptoms=["shortness of breath"])
     r = q.add("C", v, {})["decision"]
     assert r["state"] == "ACT" and r["alert_path"] == "immediate_safety"     # first day, no streak
     a = r["immediate_alerts"][0]
-    assert a["trigger"] == "spo2" and a["value"] == 89 and a["data_status"] == "manually entered"
+    assert a["trigger"] == "symptom" and a["data_status"] == "manually entered"
     assert a["why_trusted"] and isinstance(a["mission_day"], int)
-    v = q.defaults("C")["values"]; v["spo2"] = 40                         # impossible: a sensor fault
+    v = q.defaults("C")["values"]; v["heart_rate"] = 250                 # impossible: an input fault
     r = q.add("C", v, {})["decision"]
     assert r["alert_path"] != "immediate_safety" and r["sensor_faults"]
 

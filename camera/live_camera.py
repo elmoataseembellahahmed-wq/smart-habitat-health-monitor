@@ -1,16 +1,16 @@
 """Cabin camera, all-day mode: measures blinking and eye closure whenever an astronaut
-faces it, and files the result under their wristband ID.
+faces it, and files the result under the astronaut logged in to that workstation.
 
 Start the server first (python run_offline.py, or uvicorn backend.main:app), then:
     pip install opencv-python
-    python camera/live_camera.py --band B
+    python camera/live_camera.py --astronaut B
 
---band is the ID of the wristband nearest this camera. In the real habitat the
-wristband's ultra-wideband signal tells each workstation who is in front of it, so
+--astronaut is the ID of the astronaut logged in to this workstation (A, B or C). The
+login tells the system who is in front of the webcam, so
 the camera never needs to recognize a face. Here you choose it by hand:
 A = Amira, B = Ben, C = Chen.
 
-The first time a band is used, the camera learns that person's normal blinking over
+The first time an astronaut uses it, the camera learns that person's normal blinking over
 60 seconds of face time and saves it in camera/baselines/. Later sessions load it and
 start measuring at once. Use --reset-baseline to learn it again.
 
@@ -81,11 +81,11 @@ def send(server, reading):
 
 def main():
     ap = argparse.ArgumentParser(description="Cabin camera: all-day blink and eye-closure monitor")
-    ap.add_argument("--band", default="B", help="wristband ID near this camera (A, B or C)")
+    ap.add_argument("--astronaut", "--band", dest="band", default="B", help="ID of the astronaut logged in here (A, B or C)")
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--calibrate", type=float, default=60.0,
                     help="seconds of face time to learn this person's normal (first use only)")
-    ap.add_argument("--reset-baseline", action="store_true", help="learn this band's normal again")
+    ap.add_argument("--reset-baseline", action="store_true", help="learn this astronaut's normal again")
     ap.add_argument("--server", default="http://127.0.0.1:8000")
     ap.add_argument("--no-window", action="store_true")
     args = ap.parse_args()
@@ -102,11 +102,11 @@ def main():
 
     tracker = BlinkTracker(calibration_s=args.calibrate, baseline=saved)
     last_send, server_ok, saved_now = 0.0, None, saved is not None
-    print(f"Cabin camera running for wristband {band}.")
+    print(f"Workstation webcam running for astronaut {band}.")
     if saved:
-        print(f"Loaded this band's normal: {saved['blink_rate']:.0f} blinks/min. Measuring now.")
+        print(f"Loaded this astronaut's normal: {saved['blink_rate']:.0f} blinks/min. Measuring now.")
     else:
-        print(f"Learning band {band}'s normal for {args.calibrate:.0f} s of face time: "
+        print(f"Learning astronaut {band}'s normal for {args.calibrate:.0f} s of face time: "
               "look at the screen and blink normally.")
     print("Press q in the camera window (or Ctrl+C here) to stop.")
 
@@ -141,7 +141,7 @@ def main():
             if not saved_now and tracker.baseline():
                 tracker.save_baseline(baseline_file)
                 saved_now = True
-                print(f"Learned and saved band {band}'s normal "
+                print(f"Learned and saved astronaut {band}'s normal "
                       f"({tracker.baseline_blink_rate:.0f} blinks/min). Measuring now.")
 
             r = tracker.reading()
@@ -156,13 +156,13 @@ def main():
             if not args.no_window:
                 t = r["today"]
                 if r["calibrating"]:
-                    text = f"Band {band} - learning normal... {r['calibration_left']:.0f}s"
+                    text = f"Astronaut {band} - learning normal... {r['calibration_left']:.0f}s"
                 elif many:
-                    text = f"Band {band} - {len(faces)} faces in view (paused until one remains)"
+                    text = f"Astronaut {band} - {len(faces)} faces in view (paused until one remains)"
                 elif not face_found:
-                    text = f"Band {band} - no face in view (not measuring)"
+                    text = f"Astronaut {band} - no face in view (not measuring)"
                 else:
-                    text = (f"Band {band}  Blinks {r['blink_rate']:.0f}/min  Closed {r['perclos'] * 100:.0f}%  "
+                    text = (f"Astronaut {band}  Blinks {r['blink_rate']:.0f}/min  Closed {r['perclos'] * 100:.0f}%  "
                             f"Fatigue {r['fatigue_score']}")
                 cv2.putText(frame, text, (12, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 cv2.putText(frame, f"Today: {t['face_minutes']} min in view, {t['microsleeps']} microsleeps",

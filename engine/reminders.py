@@ -2,21 +2,20 @@
 
 The challenge suggests the tool can prompt astronauts to take measurements or do
 actions as part of the mission routine. In our design almost everything is measured
-passively, so the reminders are short and few:
-  * a weekly cuff check, to keep the cuffless blood pressure sensor calibrated
-  * a glucose patch change every 14 days
+passively at the workstation, so the reminders are short and few:
+  * the morning check-in (sleep, mood, symptoms) and the 60-second reaction test
+  * a weekly manual pulse check, to compare with the webcam heart-rate estimate
   * the daily resistance exercise session (the main protection for bones and muscles)
 Plus a small motivation element: the streak of days in NORMAL.
 """
 
-CUFF_EVERY = 7
-PATCH_EVERY = 14
-# Patch changes are staggered so the whole crew doesn't change patches on the same day.
-PATCH_OFFSET = {"A": 0, "B": 4, "C": 9}
+PULSE_EVERY = 7
+# Pulse checks are staggered so the whole crew doesn't do them on the same day.
+PULSE_OFFSET = {"A": 0, "B": 2, "C": 4}
 
 TEXT_AR = {
-    "cuff": ("فحص ضغط الدم الأسبوعي بالكُمّ", "يُبقي مستشعر الضغط بدون كُمّ دقيقًا. دقيقتان."),
-    "patch": ("تغيير لاصقة قياس السكر", "تعمل اللاصقة من 10 إلى 14 يومًا."),
+    "checkin": ("التسجيل الصباحي واختبار رد الفعل", "النوم والمزاج والأعراض، واختبار بالماوس لمدة 60 ثانية."),
+    "pulse": ("قياس النبض يدويًا كل أسبوع", "للمقارنة مع تقدير النبض من الكاميرا. دقيقة واحدة."),
     "exercise": ("تمرين المقاومة اليومي", "الحماية الأساسية للعظام والعضلات في انعدام الجاذبية."),
 }
 
@@ -28,12 +27,12 @@ def _due_in(day, every, offset=0):
 def reminders(aid, day):
     """Routine items for one astronaut on one mission day, most urgent first."""
     items = [
-        {"id": "cuff", "task": "Weekly blood pressure cuff check",
-         "why": "Keeps the cuffless blood pressure sensor accurate. Takes 2 minutes.",
-         "due_in_days": _due_in(day, CUFF_EVERY)},
-        {"id": "patch", "task": "Change the glucose patch",
-         "why": "The patch works for 10 to 14 days.",
-         "due_in_days": _due_in(day, PATCH_EVERY, PATCH_OFFSET.get(aid, 0))},
+        {"id": "checkin", "task": "Morning check-in and 60-second reaction test",
+         "why": "Sleep, mood and symptoms, plus the mouse reaction test. About 2 minutes.",
+         "due_in_days": 0},
+        {"id": "pulse", "task": "Weekly manual pulse check",
+         "why": "Compared with the webcam heart-rate estimate to keep it honest. Takes 1 minute.",
+         "due_in_days": _due_in(day, PULSE_EVERY, PULSE_OFFSET.get(aid, 0))},
         {"id": "exercise", "task": "Daily resistance exercise",
          "why": "The main protection for bones and muscles in low gravity.",
          "due_in_days": 0},

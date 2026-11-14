@@ -35,7 +35,7 @@ function tab(which) {
 }
 
 // ---------- quick check ----------
-const EXTRA = { camera_minutes: ["Camera time (face in view)", "min"], exercise_minutes: ["Exercise", "min"],
+const EXTRA = { workstation_minutes: ["Time at the workstation", "min"], exercise_minutes: ["Exercise", "min"],
   personal_dose: ["Personal dosimeter", "mSv/day"] };
 
 function buildFields() {
@@ -129,15 +129,15 @@ async function upload(file) {
   const head = el("tr", {}, el("th", {}, ""), ...days.map((d) => el("td", { class: "daynum", title: `day ${d}` }, d % 10 === 0 ? d : "")));
   const rows = r.crew.map((c) => el("tr", {}, el("th", {}, `${c.name} (${c.id})`),
     ...r.grid[c.id].map((x) => {
-      const marks = [x.sensor_check.length ? "s" : "", x.band_check ? "b" : "", x.drift.length ? "d" : ""].join("");
+      const marks = [x.input_check.length ? "i" : "", x.session_check ? "l" : "", x.drift.length ? "d" : ""].join("");
       const td = el("td", { class: x.state, title: `day ${x.day}: ${x.state}, score ${x.score}, AI ${x.ai}, data ${x.confidence}` +
-        (x.sensor_check.length ? `, sensor check: ${x.sensor_check.join(", ")}` : "") +
-        (x.band_check ? `, band swapped with ${x.band_check}` : "") + (x.drift.length ? `, slow drift: ${x.drift.join(", ")}` : "") }, marks);
+        (x.input_check.length ? `, input check: ${x.input_check.join(", ")}` : "") +
+        (x.session_check ? `, login swapped with ${x.session_check}` : "") + (x.drift.length ? `, slow drift: ${x.drift.join(", ")}` : "") }, marks);
       td.addEventListener("click", () => { st.sel = { aid: c.id, day: x.day, td }; loadCsvReport(); });
       return td;
     })));
   $("csvgrid").replaceChildren(el("table", {}, head, ...rows),
-    el("div", { class: "legend2" }, "Green Normal · amber Watch · red Act · letters: s = sensor check, b = band swap, d = slow drift"));
+    el("div", { class: "legend2" }, "Green Normal · amber Watch · red Act · letters: i = input check, l = login swap, d = slow drift"));
   const wide = Object.entries(r.crew_wide);
   if (wide.length) $("csvwide").replaceChildren(el("h3", {}, "Crew-wide events"),
     el("ul", {}, ...wide.map(([d, notes]) => el("li", {}, el("b", {}, `Day ${d}: `), notes.join(" ")))));

@@ -1,14 +1,14 @@
-"""Live cabin-camera assessment, filed per wristband.
+"""Live workstation-webcam assessment, filed under the logged-in astronaut.
 
 The camera script (camera/live_camera.py) measures, from a real webcam:
   * blink rate (blinks per minute)
   * PERCLOS: the share of time the eyes are closed, a standard drowsiness measure
   * long eye closures (0.5 s or more), a sign of microsleep
   * a whole-day summary: minutes in view, overall eye closure, microsleeps, worst hour
-Each reading carries the ID of the wristband nearest the camera. The wristband says
-WHO is in front of the camera, so no face recognition is needed.
+Each reading carries the ID of the astronaut logged in to that workstation. The login
+says WHO is at the camera, so no face recognition is needed.
 
-This module turns the latest reading for each band into a state with reasons, using
+This module turns the latest reading for each astronaut into a state with reasons, using
 the same idea as the rest of the system: compare to the person's OWN normal.
 """
 
@@ -18,7 +18,7 @@ from .simulate import CREW
 
 STALE_SECONDS = 10  # no reading for this long = that camera is disconnected
 
-_latest = {}  # band -> {"reading": ..., "received_at": ...}
+_latest = {}  # astronaut ID -> {"reading": ..., "received_at": ...}
 
 
 def store(reading):
@@ -36,15 +36,14 @@ def assess(reading):
         return {"state": "PAUSED", "reasons": [
             "Two or more faces are in front of this camera. The system cannot be sure whose eyes "
             "it is watching, so it does not guess: it pauses until only one face is in view.",
-            "No face recognition is used. The cameras run all day, so a few paused moments "
+            "No face recognition is used. The webcam runs whenever the workstation is used, so a few paused moments "
             "don't affect the daily fatigue picture."], "actions": []}
     if not reading.get("face_detected"):
         return {"state": "NOT IN VIEW", "reasons": [
-            "Nobody is facing this camera right now. That's normal: the cameras measure "
-            "whenever a face is in view.",
-            "If the cameras see someone for less than 30 minutes in a day, the system does not "
-            "guess from the camera: it estimates fatigue from their wristband (sleep, heart rate "
-            "variability, heart rate) and says so in the report."], "actions": []}
+            "Nobody is facing this camera right now. That's normal: the webcam measures "
+            "whenever the astronaut is at the workstation.",
+            "If someone uses the workstation for less than 30 minutes in a day, the system does "
+            "not guess: those readings are marked unavailable and the report says so."], "actions": []}
 
     base_rate = reading.get("baseline_blink_rate") or 0
     base_perclos = reading.get("baseline_perclos") or 0

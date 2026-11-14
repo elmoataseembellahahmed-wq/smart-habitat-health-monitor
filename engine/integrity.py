@@ -1,12 +1,14 @@
 """Two data-integrity checks that keep the health rules honest.
 
-1. Wristband swap check.
-   Each wristband carries an astronaut's ID, and every astronaut has their own normal
-   for heart rate, HRV, blood oxygen, temperature and sleep. If two astronauts swap
-   bands, each band suddenly reads like the OTHER person's normal. When that happens
-   the system does not raise a health alarm (the cause is the band, not an illness):
-   it ignores that day's wristband readings and asks both astronauts to check their band.
-   No face recognition is needed: the signals themselves give the swap away.
+1. Workstation session swap check.
+   Each workstation session is logged in under one astronaut, and every astronaut has
+   their own normal for typing, reaction time, hand steadiness and the webcam signals.
+   If two astronauts work under each other's login, each session suddenly reads like the
+   OTHER person's normal (how fast and how accurately someone types is almost as personal
+   as a signature). When that happens the system does not raise a health alarm (the
+   cause is the login, not an illness): it ignores that day's workstation readings and
+   asks both astronauts to check that they are logged in as themselves. No face
+   recognition is needed: the signals themselves give the swap away.
 
 2. Slow-drift check (fixed anchor).
    The personal normal is re-learned every week, so a decline slow enough to look
@@ -16,12 +18,12 @@
    even though no single day crossed a limit.
 """
 
-from .signals import SIGNALS, CORE_SIGNALS
+from .signals import SIGNALS, CORE_SIGNALS, WORKSTATION_SIGNALS
 
-# Signals that come from the wristband (the device that carries the astronaut's ID).
-WRIST_SIGNALS = [k for k in CORE_SIGNALS if SIGNALS[k]["device"] == "wristband"]
+# Signals measured at the workstation (they belong to whoever was really at it).
+SESSION_SIGNALS = list(WORKSTATION_SIGNALS)
 
-# Swap: each band must fit the other person's normal clearly better than its owner's.
+# Swap: each session must fit the other person's normal clearly better than its owner's.
 SWAP_RATIO = 0.5    # swapped fit must be at most half the "as labelled" distance
 SWAP_MARGIN = 12.0  # and better by at least this much (sum of squared z, both bands)
 
@@ -30,25 +32,25 @@ DRIFT_Z = 1.5
 
 
 def _distance(reading, base):
-    """Sum of squared z-scores of the wristband signals against one person's normal."""
-    return sum(((reading[k] - base[k]["mean"]) / base[k]["sd"]) ** 2 for k in WRIST_SIGNALS)
+    """Sum of squared z-scores of the workstation signals against one person's normal."""
+    return sum(((reading[k] - base[k]["mean"]) / base[k]["sd"]) ** 2 for k in SESSION_SIGNALS)
 
 
-def band_swap(aid, day, crew_data, baseline_for, crew_ids):
-    """Return {"with": other_id, ...} if aid's band looks swapped with another band, else None.
+def session_swap(aid, day, crew_data, baseline_for, crew_ids):
+    """Return {"with": other_id, ...} if aid's session looks swapped with another's, else None.
 
     baseline_for(aid, day) gives the personal normal in use on that day.
     """
     mine = crew_data[aid][day]
-    if any(mine.get(k) is None for k in WRIST_SIGNALS):
-        return None                     # a wristband reading is unavailable: can't compare
+    if any(mine.get(k) is None for k in SESSION_SIGNALS):
+        return None                     # a workstation reading is unavailable: can't compare
     base_me = baseline_for(aid, day)
     best = None
     for other in crew_ids:
         if other == aid or day not in crew_data[other]:
             continue
         theirs = crew_data[other][day]
-        if any(theirs.get(k) is None for k in WRIST_SIGNALS):
+        if any(theirs.get(k) is None for k in SESSION_SIGNALS):
             continue
         base_other = baseline_for(other, day)
         as_labelled = _distance(mine, base_me) + _distance(theirs, base_other)

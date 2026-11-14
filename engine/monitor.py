@@ -12,21 +12,21 @@ from .fusion import fuse, GENERAL_ACTIONS
 from .report import build_report
 from .arabic import build_report_ar
 from .reminders import reminders, normal_streak
-from .integrity import band_swap, drift, WRIST_SIGNALS
+from .integrity import session_swap, drift, SESSION_SIGNALS
 from . import quality
 from . import version
 from . import access
 from .nasa_resources import risks_for
 from . import clinical as clin
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
-                      CAMERA_SIGNALS, MIN_CAMERA_MINUTES, wrist_fatigue)
+                      WORKSTATION_SIGNALS, MIN_WORKSTATION_MINUTES)
 
 TREND_DAYS = 5
 LEARN_EVERY = 7    # the personal normal (and the AI model) is updated once a week...
 LEARN_WINDOW = 30  # ...from the last 30 days that this astronaut was in NORMAL
 MIN_LEARN_DAYS = 7  # fewer usable days than this: keep the previous week's normal
 
-BAND_ACTION = "Check that you are wearing your own wristband (the ID is on the band), then swap back if needed."
+SESSION_ACTION = "Check that you are logged in to the workstation as yourself, then log out and back in if needed."
 DRIFT_ACTION = ("Flight surgeon: review the slow change in this astronaut's normal since the start "
                 "of the mission (it is too gradual to show on any single day).")
 
@@ -46,16 +46,13 @@ class HealthMonitor:
         self.day_status = {}
         self.baseline_days = baseline_days or simulate.BASELINE_DAYS
         self.days = sorted(self.data["cabin"].keys())
-        # Sensor quality first: faulty readings are kept aside and never analysed.
+        # Input quality first: faulty readings are kept aside and never analysed.
         self.faults = quality.scan(self.data["crew"])
         self.raw_values = {}
         for (aid, day), issues in self.faults.items():
             for key in issues:
                 self.raw_values[(aid, day, key)] = self.data["crew"][aid][day].get(key)
                 self.data["crew"][aid][day][key] = None
-        for crew_days in self.data["crew"].values():
-            for reading in crew_days.values():
-                reading["wrist_fatigue"] = wrist_fatigue(reading)
         self.baselines = {
             m["id"]: compute_baseline(self.data["crew"][m["id"]], self.baseline_days)
             for m in self.crew
@@ -69,7 +66,7 @@ class HealthMonitor:
         self._ai_cache = {}
         self._learned = {}      # update day -> per-astronaut baseline and AI model
         self._rule_states = {}  # (aid, day) -> rule-based state, used to pick learning days
-        self._band = {}         # (aid, day) -> wristband swap check result
+        self._session = {}      # (aid, day) -> workstation session swap check result
 
     # ---------- adding data (manual entry, or a live feed) ----------
     def add_day(self, day, readings, cabin, data_status="manually entered"):
@@ -91,14 +88,13 @@ class HealthMonitor:
                 for key in issues:
                     self.raw_values[(aid, day, key)] = days[day].get(key)
                     days[day][key] = None
-            days[day]["wrist_fatigue"] = wrist_fatigue(days[day])
 
     def share_learning(self, other):
         """Reuse another monitor's learned weeks (same data up to its last day), so a
         copy for manual testing starts instantly instead of re-learning the mission."""
         self._learned.update(other._learned)
         self._rule_states.update(other._rule_states)
-        self._band.update(other._band)
+        self._session.update(other._session)
         self._ai_cache.update(other._ai_cache)
 
     # ---------- continuous learning ----------
@@ -115,7 +111,7 @@ class HealthMonitor:
         if u == max(self.baseline_days) + 1:
             return list(self.baseline_days)
         window = [d for d in range(u - LEARN_WINDOW, u) if d in self.data["crew"][aid]]
-        days = [d for d in window if not self.band_check(aid, d) and not self.symptoms(aid, d)
+        days = [d for d in window if not self.session_check(aid, d) and not self.symptoms(aid, d)
                 and (d in self.baseline_days or self._rule_state(aid, d) == "NORMAL")]
         if len(days) < MIN_LEARN_DAYS:
             return self.learning_days(aid, u - 1)   # too few healthy days: keep last week's normal
@@ -139,28 +135,28 @@ class HealthMonitor:
         reported = self.data["crew"][aid][day].get("symptoms") or []
         return [s for s in reported if s in clin.SEVERE_SYMPTOMS]
 
-    def band_check(self, aid, day):
-        """Swap check: does this astronaut's band read like another astronaut's normal today?"""
+    def session_check(self, aid, day):
+        """Swap check: does this astronaut's workstation session read like another astronaut's normal?"""
         key = (aid, day)
-        if key not in self._band:
-            self._band[key] = None   # placeholder while computing
+        if key not in self._session:
+            self._session[key] = None   # placeholder while computing
             if day in self.baseline_days:
                 res = None           # the normal is still being learned: nothing to compare with
             else:
-                res = band_swap(aid, day, self.data["crew"], self.baseline_for,
-                                [m["id"] for m in self.crew])
-            self._band[key] = res
-        return self._band[key]
+                res = session_swap(aid, day, self.data["crew"], self.baseline_for,
+                                   [m["id"] for m in self.crew])
+            self._session[key] = res
+        return self._session[key]
 
-    def camera_seen(self, aid, day):
-        return self.data["crew"][aid][day].get("camera_minutes", 999) >= MIN_CAMERA_MINUTES
+    def workstation_used(self, aid, day):
+        return self.data["crew"][aid][day].get("workstation_minutes", 999) >= MIN_WORKSTATION_MINUTES
 
     def _signals(self, aid, day, base):
-        """Layer 2 for every signal. If the cameras saw too little of this astronaut today,
-        the camera readings are not trusted and fatigue comes from the wristband instead."""
+        """Layer 2 for every signal. If the astronaut barely used the workstation today (for
+        example during a spacewalk), the webcam, keyboard and mouse readings are not trusted."""
         days = self.data["crew"][aid]
-        seen = self.camera_seen(aid, day)
-        swap = self.band_check(aid, day)
+        used = self.workstation_used(aid, day)
+        swap = self.session_check(aid, day)
         issues = self.faults.get((aid, day), {})
         out = []
         for k in CORE_SIGNALS:
@@ -168,15 +164,16 @@ class HealthMonitor:
                 entry = self._not_trusted(k, base, issues[k]["message"])
                 entry.update(untrusted=False, fault=issues[k]["code"])
                 out.append(entry)
-            elif swap and k in WRIST_SIGNALS:
-                out.append(self._not_trusted(k, base, f"This band seems to be on another astronaut's wrist "
-                                             f"today, so its {SIGNALS[k]['name'].lower()} reading was not used."))
-            elif k in CAMERA_SIGNALS and not seen:
-                if swap and k == "fatigue_score":
-                    out.append(self._not_trusted(k, base, "The cameras saw too little today and the wristband "
-                                                 "seems swapped, so fatigue could not be measured."))
-                else:
-                    out.append(self._camera_fallback(k, day, days, base))
+            elif k in WORKSTATION_SIGNALS and not used:
+                minutes = days[day].get("workstation_minutes", 0)
+                entry = self._not_trusted(k, base, f"The astronaut used the workstation for only {minutes} min "
+                                          f"today (at least {MIN_WORKSTATION_MINUTES} min needed), so this was "
+                                          "not measured.")
+                entry.update(untrusted=False, workstation_minutes=minutes)
+                out.append(entry)
+            elif swap and k in SESSION_SIGNALS:
+                out.append(self._not_trusted(k, base, f"Someone else seems to have used this astronaut's login "
+                                             f"today, so the {SIGNALS[k]['name'].lower()} reading was not used."))
             else:
                 out.append(analyse_signal(k, day, days, base))
         return out
@@ -188,27 +185,6 @@ class HealthMonitor:
                 "system": meta["system"], "domain": meta["domain"], "value": None,
                 "baseline": round(base[key]["mean"], 2), "z": 0.0, "level": None, "streak_days": 0,
                 "limit": None, "reason": None, "missing": True, "untrusted": True, "note": note}
-
-    def _camera_fallback(self, key, day, days, base):
-        minutes = days[day].get("camera_minutes", 0)
-        note = (f"The cameras saw this astronaut for only {minutes} min today "
-                f"(at least {MIN_CAMERA_MINUTES} min needed)")
-        if key == "fatigue_score" and days[day].get("wrist_fatigue") is None:
-            return self._not_trusted(key, base, note + ", and the wristband readings needed for an "
-                                     "estimate are unavailable, so fatigue was not measured.")
-        if key == "fatigue_score":
-            a = analyse_signal("wrist_fatigue", day, days, base)
-            a.update(signal="fatigue_score", source="wristband", camera_minutes=minutes,
-                     note=note + ", so fatigue was estimated from the wristband (sleep, HRV, heart rate).")
-            if a["reason"]:
-                a["reason"] = note + ", so fatigue was estimated from the wristband. " + a["reason"]
-            return a
-        meta = SIGNALS[key]
-        return {"signal": key, "name": meta["name"], "unit": meta["unit"], "device": meta["device"],
-                "system": meta["system"], "domain": meta["domain"], "value": None,
-                "baseline": round(base[key]["mean"], 2), "z": 0.0, "level": None, "streak_days": 0,
-                "limit": None, "reason": None, "missing": True, "camera_minutes": minutes,
-                "note": note + ", so this was not measured."}
 
     def _rule_state(self, aid, day):
         key = (aid, day)
@@ -291,10 +267,12 @@ class HealthMonitor:
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
                                "trigger": s["signal"], "value": s.get("value"), "unit": s.get("unit"),
                                "limit_rule": "absolute safety limit (engine/signals.py, docs/THRESHOLDS.md)",
-                               "source": ("daily check-in" if s["signal"] in ("mood_score", "stress_words")
-                                          else "wristband"), "data_status": self.status_of(day),
-                               "why_trusted": "reading passed the quality check (paired device, in range, "
-                                              "not stuck, not missing)"})
+                               "source": SIGNALS[s["signal"]]["device"] and DEVICES[SIGNALS[s["signal"]]["device"]]["name"],
+                               "data_status": self.status_of(day),
+                               "why_trusted": "reading passed the quality check (own login, in range, "
+                                              "not stuck, not missing)"
+                                              + ("; it is an estimate, so confirm it by hand"
+                                                 if SIGNALS[s["signal"]].get("confirm_first") else "")})
         for c in decision["cabin"]:
             if c.get("level") == "act":
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
@@ -329,20 +307,20 @@ class HealthMonitor:
             None: None}[path]
 
     def _integrity(self, aid, day, decision):
-        """Add the wristband swap check and the slow-drift check to a day's decision."""
-        swap = self.band_check(aid, day)
-        decision["band_check"] = None
+        """Add the workstation session swap check and the slow-drift check to a day's decision."""
+        swap = self.session_check(aid, day)
+        decision["session_check"] = None
         if swap:
             other = self.member(swap["with"])
-            decision["band_check"] = {
+            decision["session_check"] = {
                 "with": swap["with"], "with_name": other["name"],
-                "message": (f"Today's wristband readings match {other['name']}'s normal, and "
-                            f"{other['name']}'s band matches this astronaut's. The bands were probably "
-                            "swapped. No health alarm is raised from them: the wristband readings were "
-                            "set aside for today."),
+                "message": (f"Today's workstation readings (typing, reaction time, webcam) match "
+                            f"{other['name']}'s normal, and {other['name']}'s session matches this "
+                            "astronaut's. They probably used each other's login. No health alarm is "
+                            "raised from it: the workstation readings were set aside for today."),
             }
-            decision["actions"] = [BAND_ACTION] + [a for a in decision["actions"]
-                                                   if a != "No action needed. Keep the normal schedule."]
+            decision["actions"] = [SESSION_ACTION] + [a for a in decision["actions"]
+                                                      if a != "No action needed. Keep the normal schedule."]
         drifted = drift(self.baselines[aid], self.baseline_for(aid, day)) if day not in self.baseline_days else []
         decision["drift"] = drifted
         if drifted:
@@ -362,13 +340,9 @@ class HealthMonitor:
         if key not in self._ai_cache:
             learned = self._learned_for(aid, day)
             reading = dict(self.data["crew"][aid][day])
-            if not self.camera_seen(aid, day):
-                # Camera values weren't measured: give the model a neutral value for them.
-                for k in CAMERA_SIGNALS:
-                    reading[k] = learned["baseline"][k]["mean"]
-            if self.band_check(aid, day):
-                # Swapped band: its readings belong to someone else, so they are neutralised too.
-                for k in WRIST_SIGNALS:
+            if not self.workstation_used(aid, day) or self.session_check(aid, day):
+                # Workstation values not measured, or they belong to someone else: neutral values.
+                for k in WORKSTATION_SIGNALS:
                     reading[k] = learned["baseline"][k]["mean"]
             for k in CORE_SIGNALS:
                 if reading.get(k) is None:     # unavailable reading: neutral value for the model
@@ -465,7 +439,8 @@ class HealthMonitor:
 
 
 # Signals that cabin CO2 can change in everyone (faster breathing, fatigue, headache-related).
-CO2_SENSITIVE = {"breathing_rate", "heart_rate", "fatigue_score", "blink_rate", "spo2", "sleep_hours"}
+CO2_SENSITIVE = {"breathing_rate", "heart_rate", "fatigue_score", "blink_rate", "sleep_hours", "reaction_time",
+                 "typing_speed", "typing_errors"}
 
 
 def crew_wide(crew, cabin):
