@@ -95,6 +95,13 @@ class QuickCheck:
         self.added.append({"day": day, "aid": aid})
         return self.result(aid, day)
 
+    def add_reading(self, aid, day, key, value, kind="re-measure", when=None):
+        """Another reading for a day already added by hand (evening, unwell or re-measure)."""
+        if not any(x["aid"] == aid and x["day"] == day for x in self.added):
+            raise ValueError("Add the day first, then add more readings to it.")
+        self.m.add_reading(aid, day, key, float(value), kind, when)
+        return self.result(aid, day)
+
     def result(self, aid, day):
         d = self.m.assess(aid, day)
         return {"day": day, "aid": aid, "decision": {k: v for k, v in d.items()},

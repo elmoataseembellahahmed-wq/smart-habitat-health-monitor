@@ -89,6 +89,21 @@ function showQuick(r) {
   $("qreport").textContent = st.qlang === "ar" ? r.report_ar : r.report_en;
   $("qreport").dir = st.qlang === "ar" ? "rtl" : "ltr";
   $("qday").textContent = r.day + 1;
+  $("xform").hidden = false;
+  if (!$("xsig").options.length) {
+    const sig = st.mission.signals;
+    $("xsig").replaceChildren(...Object.keys(sig).filter((k) => sig[k].device === "entry")
+      .map((k) => el("option", { value: k }, `${sig[k].name} (${sig[k].unit})`)));
+  }
+}
+
+async function addReading(e) {
+  e.preventDefault();
+  if (!st.last) return;
+  try {
+    showQuick(await post("/api/manual/reading", { aid: st.last.aid, day: st.last.day, signal: $("xsig").value,
+      value: Number($("xval").value), kind: $("xkind").value, when: $("xwhen").value }));
+  } catch (err) { $("qreport").textContent = `Error: ${err.message}`; }
 }
 
 async function evaluate(e) {
@@ -166,6 +181,7 @@ async function init() {
   await fillNormal();
   $("qaid").addEventListener("change", fillNormal);
   $("qform").addEventListener("submit", evaluate);
+  $("xform").addEventListener("submit", addReading);
   $("qnormal").addEventListener("click", fillNormal);
   $("qreset").addEventListener("click", resetQuick);
   $("qen").addEventListener("click", () => setQLang("en"));

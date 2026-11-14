@@ -36,6 +36,57 @@ async function api(path, asText = false) {
   return asText ? res.text() : res.json();
 }
 
+async function postJSON(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`${path}: ${res.status}`);
+  return res.json();
+}
+
+// ---------- body self-check: click where it hurts ----------
+function selfCheckBlock(system) {
+  const list = (state.symptoms || {})[system] || [];
+  if (!list.length) return null;
+  const box = el("div", { class: "selfcheck" },
+    el("div", { class: "lbl" }, "Self-check: how do you feel here?"),
+    ...list.map((x) => el("label", { class: "sym" },
+      el("input", { type: "checkbox", value: x.id }), ` ${x.name}${x.act ? " (urgent)" : ""} `,
+      el("select", { "data-sev": x.id }, el("option", { value: "mild" }, "mild"), el("option", { value: "strong" }, "strong")))),
+    el("button", { type: "button", class: "primary", onclick: async () => {
+      const symptoms = [...box.querySelectorAll("input:checked")].map((c) => ({ id: c.value,
+        severity: box.querySelector(`select[data-sev="${CSS.escape(c.value)}"]`).value }));
+      const r = await postJSON("/api/selfcheck", { aid: state.selected, day: state.day, symptoms, lang: state.lang });
+      out.replaceChildren(el("div", { class: `sc-state ${r.state}` }, r.note),
+        ...r.cards.map((c) => el("div", { class: "guide", dir: state.lang === "ar" ? "rtl" : "ltr" },
+          el("strong", {}, `${c.name} · ${c.level}`), el("p", {}, c.means),
+          el("ul", {}, ...c.do_now.map((d) => el("li", {}, d))),
+          el("p", { class: "guide-call" }, c.call_if),
+          el("p", { class: "role" }, c.medicine, " ", el("a", { href: c.source, target: "_blank", rel: "noopener" }, "NASA HRP")))));
+      loadExtras();
+    } }, "Check"));
+  const out = el("div", {});
+  box.append(out);
+  return box;
+}
+
+// ---------- daily tasks with points, and the message to the flight surgeon ----------
+async function loadExtras() {
+  if (!state.selected || state.role === "commander") return;
+  const aid = state.selected;
+  try {
+    const b = await api(`/api/tasks/${aid}?day=${state.day}`);
+    $("tasks").replaceChildren(
+      el("div", { class: "points" }, `${b.points_today} points today · ${b.points_total} total · ${b.all_done_streak}-day all-done streak`),
+      ...b.tasks.map((t) => el("label", { class: `task ${t.done ? "done" : ""}` },
+        el("input", Object.assign({ type: "checkbox" }, t.done ? { checked: "", disabled: "" } : {})), " ", t.text)));
+    $("tasks").querySelectorAll("input").forEach((inp, i) => inp.addEventListener("change", async () => {
+      await postJSON("/api/tasks/tick", { aid, day: state.day, task: b.tasks[i].id });
+      loadExtras();
+    }));
+    $("earth").textContent = await api(`/api/earth/${aid}?day=${state.day}&lang=${state.lang}&role=${state.role}`, true);
+    $("earth").dir = state.lang === "ar" ? "rtl" : "ltr";
+  } catch (e) { /* the panel is optional */ }
+}
+
 function missingWord(s) {
   if (s.private) return "private";
   if (s.fault === "skipped") return "skipped (optional)";
@@ -201,7 +252,8 @@ function renderBody(m) {
     rows.length ? el("div", { class: "lbl" }, "Readings today") : null,
     rows.length ? el("table", { class: "readings" }, ...rows) : null,
     el("div", { class: "lbl" }, "What to do"),
-    el("ul", {}, ...sys.actions.map((a) => el("li", {}, a)))].filter(Boolean));
+    el("ul", {}, ...sys.actions.map((a) => el("li", {}, a))),
+    selfCheckBlock(key)].filter(Boolean));
 }
 
 function bindBody() {
@@ -358,6 +410,7 @@ async function render() {
   renderDetail(m);
   renderBody(m);
   await loadReport(m.id);
+  loadExtras();
 }
 
 async function loadReport(aid) {
@@ -468,6 +521,7 @@ async function loadSeries() {
 
 async function init() {
   state.mission = await api("/api/mission");
+  try { state.symptoms = await api("/api/selfcheck/catalogue"); } catch (e) { state.symptoms = {}; }
   const slider = $("day");
   slider.min = state.mission.first_day;
   slider.max = state.mission.last_day;
@@ -481,6 +535,7 @@ async function init() {
     loadSeries().then(render).catch(showError);
   });
   $("copy").addEventListener("click", () => navigator.clipboard?.writeText($("report").textContent));
+  $("copyEarth").addEventListener("click", () => navigator.clipboard?.writeText($("earth").textContent));
   $("langEn").addEventListener("click", () => setLang("en"));
   $("langAr").addEventListener("click", () => setLang("ar"));
   // The browser's print dialog has "Save as PDF"; the print styles show only the report.

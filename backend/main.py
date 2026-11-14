@@ -134,6 +134,55 @@ def manual_day(body: dict = Body(...)):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/manual/reading")
+def manual_reading(body: dict = Body(...)):
+    """Another reading (evening, unwell or re-measure) for a day added by hand."""
+    try:
+        return quick.add_reading(body.get("aid", "A"), int(body["day"]), body["signal"], body["value"],
+                                 body.get("kind", "re-measure"), body.get("when"))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/selfcheck/catalogue")
+def selfcheck_catalogue(lang: str = "en"):
+    from engine.selfcheck import catalogue
+    return catalogue("ar" if lang == "ar" else "en")
+
+
+@app.post("/api/selfcheck")
+def selfcheck(body: dict = Body(...)):
+    """Body self-check: the astronaut clicks where it hurts and gets guidance at once."""
+    try:
+        aid, day = body.get("aid", "A"), int(body.get("day", monitor.days[-1]))
+        res = monitor.selfcheck(aid, day, body.get("symptoms", []), body.get("lang", "en"))
+        access.log(aid, aid, f"self-check day {day}: {[c['id'] for c in res['cards']]} -> {res['state']}")
+        return res
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/tasks/{aid}")
+def tasks(aid: str, day: int = Query(None)):
+    return monitor.task_board(aid, day or monitor.days[-1])
+
+
+@app.post("/api/tasks/tick")
+def tick(body: dict = Body(...)):
+    try:
+        aid, day = body.get("aid", "A"), int(body.get("day", monitor.days[-1]))
+        access.log(aid, aid, f"task done day {day}: {body['task']}")
+        return monitor.tick_task(aid, day, body["task"])
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/earth/{aid}", response_class=PlainTextResponse)
+def earth_message(aid: str, day: int = Query(None), lang: str = "en"):
+    """A short, prioritised message for the flight surgeon at the next contact window."""
+    return monitor.earth_message(aid, day or monitor.days[-1], "ar" if lang == "ar" else "en")
+
+
 @app.post("/api/manual/reset")
 def manual_reset():
     quick.reset()

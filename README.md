@@ -19,7 +19,10 @@ offline, because a message from Mars can take up to 20 minutes to reach Earth.
 2. **What changed:** the signals that moved away from *his* normal, each with a plain reason ("blood pressure 138, 15% above your normal of 120, for 3 days").
 3. **How sure:** how many values today's status is based on, and which are missing.
 4. **Guidance:** for each finding, a card with *what it means*, *do now*, *improve and prevent*, and *call the flight surgeon if*, linked to the NASA Human Research Program page it comes from. NABD never names a medicine or a dose: medicines only by the flight surgeon's instruction.
-5. **When to escalate:** ACT tells him to contact the flight surgeon; a severe symptom or a broken safety limit means ACT at once.
+5. **When to escalate:** ACT tells him to contact the flight surgeon; a severe symptom or a confirmed safety-limit value means ACT at once.
+6. **Body self-check:** he clicks the body part where he feels something, ticks the symptoms and their strength, and gets an answer at once.
+7. **Today's tasks:** the routine plus the guidance steps, ticked off for points and a streak.
+8. **Message to the flight surgeon:** short and prioritised, ready to copy into the next contact window.
 
 ## Inputs (no wearables or added hardware)
 | Input | Values | How |
@@ -28,6 +31,11 @@ offline, because a message from Mars can take up to 20 minutes to reach Earth.
 | Daily check-in (keyboard and mouse) | sleep hours, mood, optional log (stress words), severe symptoms | about 1 minute |
 | Laptop webcam | blink rate, eye closure, fatigue | automatic while he works; only numbers leave the camera, never video |
 | Habitat data | cabin CO2, radiation, temperature, humidity | from the habitat's own systems |
+
+## One reading is not trusted blindly
+* The **morning** reading (rested, before eating, same time every day) is compared with the personal normal, so like is compared with like.
+* He can add **evening** readings or readings **when unwell**; any of them past a safety limit counts.
+* A value past a safety limit must be **re-measured** after 5 minutes. Confirmed: ACT. Not confirmed: noted as a probable measuring error, no emergency. Until he re-measures, it stays ACT (safety first).
 
 ## The two alert paths
 * **Immediate safety:** a typed value past a safety limit (blood oxygen below 92%, temperature 38.0 °C or more, blood pressure above 180/120, blood sugar below 54 or above 250, heart rate below 40 or above 130, breathing above 30), cabin CO2 above its ACT limit, or a severe symptom: **ACT the same day**.
@@ -48,9 +56,9 @@ offline, because a message from Mars can take up to 20 minutes to reach Earth.
 
 This is synthetic data: it checks that the logic works as designed, not clinical validity.
 
-**Demo mission (days 1-125, 3 astronauts):** Ben WATCH on day 120 and ACT from day 121; Chen one bad night (WATCH on 121, NORMAL on 122); cabin CO2 failure on days 123-125 flagged as a crew-wide problem; Amira and Chen's profile mix-up on day 50 caught with no alarm; Amira's spacewalk on days 60-61 shown as "camera not measured". Over the 312 healthy crew-days, 2 single-day WATCHes and no ACT. The AI agrees with the rules on 69 of 78 crew-days in days 100-125.
+**Demo mission (days 1-125, 3 astronauts):** Ben WATCH on day 120 and ACT from day 121; Chen one bad night (WATCH on 121, NORMAL on 122); cabin CO2 failure on days 123-125 flagged as a crew-wide problem; Amira and Chen's profile mix-up on day 50 caught with no alarm; Amira's spacewalk on days 60-61 shown as "camera not measured". Amira's cold-hand blood oxygen on day 100 is cleared by a re-measure; Chen's evening fever on day 110 is confirmed and gives ACT although his morning value was normal. Over the other healthy crew-days, 2 single-day WATCHes and no ACT. The AI agrees with the rules on 69 of 78 crew-days in days 100-125.
 
-**44 automated tests** pass (`python tests/test_scenario.py`).
+**48 automated tests** pass (`python tests/test_scenario.py`).
 
 ## NASA resources used
 All five resources on the challenge's Resources tab (`engine/nasa_resources.py`, `engine/guidance.py`, `docs/NASA_RESOURCES.md`):
@@ -76,7 +84,7 @@ No webcam: `python camera/demo_camera.py --band B` plays a "getting tired" seque
 Tests: `python tests/test_scenario.py`. Evaluation: `python tools/evaluate.py`.
 
 ## Branches
-* **`v3`** (this branch): the astronaut enters his own data (keyboard, mouse, webcam); guidance cards for treatment and improvement; no wearables or hardware.
+* **`v3`** (this branch): the astronaut enters his own data (keyboard, mouse, webcam); several readings a day with re-measure confirmation; guidance cards; body self-check; daily tasks with points; message to the flight surgeon; no wearables or hardware.
 * **`main` / `v2`**: the submitted version, which used simulated wearables (wristband, glucose patch) and ESP32 code.
 * **`v1-original`**: the first version, unchanged.
 

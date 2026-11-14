@@ -24,6 +24,10 @@ kit and the daily check-in, plus fatigue and blinking from the laptop webcam.
   the same blood-sugar value for days 30-35, Ben types 3.67 instead of 36.7 °C on day 35,
   and some optional diary days are skipped. The system must label these "unavailable" and
   ask the astronaut to re-enter, never read them as illness.
+* Extra readings: on day 100 Amira's morning blood oxygen reads 90.6% (cold hand on the
+  oximeter); she re-measures 5 minutes later and gets 97.9%: not confirmed, no emergency.
+  On day 110 Chen feels unwell in the evening: 38.4 °C, re-measured 38.3 °C, confirmed:
+  ACT that evening, although his morning reading was normal.
 * Exercise log: minutes of daily resistance and treadmill exercise (exercise adherence,
   which protects bones and muscles; it is not a bone measurement).
 """
@@ -47,6 +51,11 @@ ENTRY_ERRORS = [
     ("A", "spo2", range(40, 42), "missing"),      # blood oxygen not entered
     ("C", "glucose", range(30, 36), "stuck"),     # the same value copied every day
     ("B", "body_temp", range(35, 36), 3.67),      # typo: 3.67 instead of 36.7 °C
+]
+# Extra readings in the day: (astronaut, day, signal, morning value or None, [(kind, value, time)]).
+DEMO_EXTRAS = [
+    ("A", 100, "spo2", 90.6, [("re-measure", 97.9, "07:42")]),
+    ("C", 110, "body_temp", None, [("unwell", 38.4, "21:10"), ("re-measure", 38.3, "21:16")]),
 ]
 SKIPPED_DIARY = [("A", 55), ("C", 56), ("C", 57)]  # optional daily diary not filled in
 EXERCISE_PLAN = 90      # planned exercise minutes a day
@@ -205,6 +214,12 @@ def generate(seed=42):
     for aid, day in SKIPPED_DIARY:
         crew_data[aid][day]["mood_score"] = None
         crew_data[aid][day]["stress_words"] = None
+
+    # Extra readings taken later in the day (re-measures, evening, feeling unwell).
+    for aid, day, key, morning, more in DEMO_EXTRAS:
+        if morning is not None:
+            crew_data[aid][day][key] = morning
+        crew_data[aid][day]["extra"] = [{"signal": key, "value": v, "kind": k, "when": t} for k, v, t in more]
 
     # Cabin temperature and humidity (own random stream: other values unchanged).
     rng6 = random.Random(seed + 6)

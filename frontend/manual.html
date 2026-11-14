@@ -59,6 +59,17 @@
       <div class="mresult">
         <div id="qhead"></div>
         <div id="qhistory" class="history"></div>
+        <form id="xform" class="xform" hidden>
+          <b>Add another reading to this day</b>
+          <span class="role">Evening, when feeling unwell, or a re-measure to confirm a value past its safety limit.</span>
+          <div class="row2">
+            <select id="xsig"></select>
+            <input id="xval" type="number" step="any" placeholder="value" required>
+            <select id="xkind"><option value="re-measure">re-measure</option><option value="evening">evening</option><option value="unwell">feeling unwell</option></select>
+            <input id="xwhen" type="time" value="21:00">
+            <button type="submit">Add reading</button>
+          </div>
+        </form>
         <div class="lang" role="group">
           <button id="qen" type="button" class="on">English</button>
           <button id="qar" type="button" lang="ar">عربي</button>

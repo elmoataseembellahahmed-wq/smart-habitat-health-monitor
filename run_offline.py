@@ -100,6 +100,17 @@ class Handler(BaseHTTPRequestHandler):
                     lang = "ar" if q.get("lang", ["en"])[0] == "ar" else "en"
                     access.log(role, parts[2], f"report day {day} ({lang})")
                     return self._send(200, monitor.report(parts[2], day, lang, role), "text/plain")
+                if parts[1:] == ["selfcheck", "catalogue"]:
+                    from engine.selfcheck import catalogue
+                    return self._json(catalogue("ar" if q.get("lang", ["en"])[0] == "ar" else "en"))
+                if parts[1] == "tasks" and len(parts) == 3:
+                    monitor.member(parts[2])
+                    return self._json(monitor.task_board(parts[2], day))
+                if parts[1] == "earth" and len(parts) == 3:
+                    monitor.member(parts[2])
+                    lang = "ar" if q.get("lang", ["en"])[0] == "ar" else "en"
+                    access.log(role, parts[2], f"message to Earth day {day}")
+                    return self._send(200, monitor.earth_message(parts[2], day, lang), "text/plain")
                 if parts[1] == "series" and len(parts) == 4:
                     monitor.member(parts[2])
                     return self._json(access.series_view(monitor.series(parts[2], parts[3]), parts[2], role))
@@ -127,6 +138,20 @@ class Handler(BaseHTTPRequestHandler):
             access.log(role, str(body.get("astronaut", "")),
                        f"ACKNOWLEDGED day {body.get('day')}: {str(body.get('note', ''))[:200]}")
             return self._json({"ok": True})
+        if path in ("/api/selfcheck", "/api/tasks/tick"):
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                b = json.loads(self.rfile.read(length) or b"{}")
+                aid, day = b.get("aid", "A"), int(b.get("day", monitor.days[-1]))
+                if path == "/api/selfcheck":
+                    res = monitor.selfcheck(aid, day, b.get("symptoms", []), b.get("lang", "en"))
+                    access.log(aid, aid, f"self-check day {day}: {[c['id'] for c in res['cards']]} -> {res['state']}")
+                    return self._json(res)
+                board = monitor.tick_task(aid, day, b["task"])
+                access.log(aid, aid, f"task done day {day}: {b['task']}")
+                return self._json(board)
+            except (KeyError, ValueError, json.JSONDecodeError) as e:
+                return self._send(400, json.dumps({"detail": str(e)}))
         if path.startswith("/api/manual/"):
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -137,6 +162,10 @@ class Handler(BaseHTTPRequestHandler):
                     if path == "/api/manual/day":
                         b = json.loads(body or "{}")
                         return self._json(quick.add(b.get("aid", "A"), b.get("values", {}), b.get("cabin", {})))
+                    if path == "/api/manual/reading":
+                        b = json.loads(body or "{}")
+                        return self._json(quick.add_reading(b.get("aid", "A"), int(b["day"]), b["signal"],
+                                                            b["value"], b.get("kind", "re-measure"), b.get("when")))
                     if path == "/api/manual/reset":
                         quick.reset()
                         return self._json({"ok": True})

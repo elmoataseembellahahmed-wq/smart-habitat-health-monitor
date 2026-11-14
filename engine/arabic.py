@@ -110,6 +110,8 @@ ACTION_AR = {
         "استرح 10 دقائق ثم أعد قياس معدل التنفس، وافحص ثاني أكسيد الكربون في المقصورة.",
     "Reported severe symptom: stop current work, follow the mission emergency procedure and contact the flight surgeon now. Do not wait for the next contact window.":
         "عَرَض شديد: أوقف العمل الحالي، واتبع إجراء الطوارئ المعتمد للمهمة، وتواصل مع طبيب الرحلة الآن دون انتظار نافذة الاتصال التالية.",
+    "A value is past its safety limit: re-measure it now after 5 minutes of rest and enter it as a re-measure to confirm.":
+        "قيمة تجاوزت حد الأمان: أعد قياسها الآن بعد 5 دقائق راحة، وأدخلها كإعادة قياس للتأكيد.",
     "Check that today's measurements were saved in your own profile, then re-enter them if needed.":
         "تأكّد أن قياسات اليوم محفوظة في ملفك أنت، وأعد إدخالها إن لزم.",
     "Re-measure blood oxygen with the finger pulse oximeter, hand still and warm.":

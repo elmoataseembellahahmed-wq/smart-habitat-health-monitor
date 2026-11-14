@@ -18,10 +18,11 @@ def state(aid, day):
 
 
 def test_baseline_days_are_quiet():
-    """No false alarms while everyone is healthy (days 100-118)."""
+    """No false alarms while everyone is healthy (days 100-118). Day 110 is Chen's real,
+    confirmed evening fever (see test_remeasure_confirms_or_clears_a_safety_value)."""
     for aid in "ABC":
         for day in range(100, 119):
-            if aid == "C" and day == 121:
+            if aid == "C" and day == 110:
                 continue
             assert state(aid, day) == "NORMAL", (aid, day)
 
@@ -53,9 +54,10 @@ def test_ai_model_finds_ben():
 
 
 def test_no_false_alarms_over_the_long_mission():
-    """Days 15-118, everyone healthy: never ACT, and at most two single-day WATCHes each."""
+    """Days 15-118, everyone healthy (except Chen's real fever on day 110): never ACT, and at
+    most two single-day WATCHes each."""
     for aid in "ABC":
-        states = [m.assess(aid, d)["state"] for d in range(15, 119)]
+        states = [m.assess(aid, d)["state"] for d in range(15, 119) if (aid, d) != ("C", 110)]
         assert "ACT" not in states, aid
         assert states.count("WATCH") <= 2, aid
 
@@ -571,6 +573,76 @@ def test_every_measurement_has_instructions():
     """The astronaut is not assumed to know how to measure: every typed value says how."""
     from engine.signals import SIGNALS
     assert all(v.get("how") for v in SIGNALS.values())
+
+
+
+def test_remeasure_confirms_or_clears_a_safety_value():
+    """Validity: a value past a safety limit is checked by a re-measure before it counts.
+    Day 100: Amira's 90.6% (cold hand) is not confirmed by 97.9% -> no emergency.
+    Day 110: Chen's evening 38.4 C is confirmed by 38.3 C -> ACT, though his morning was normal."""
+    a = m.assess("A", 100)
+    assert a["state"] != "ACT" and a["unconfirmed"] == ["spo2"]
+    assert "not confirmed" in next(f for f in a["flags"] if f["signal"] == "spo2")["reason"]
+    c = m.assess("C", 110)
+    assert c["state"] == "ACT" and c["alert_path"] == "immediate_safety"
+    t = next(f for f in c["flags"] if f["signal"] == "body_temp")
+    assert t["confirmed"] and "21:10" in t["reason"]
+    assert m.data["crew"]["C"][110]["body_temp"] < 38.0              # the morning value was normal
+    from engine.manual import QuickCheck
+    q = QuickCheck(m)
+    r = q.add("B", dict(q.defaults("B")["values"], spo2=90.0), {})
+    assert r["decision"]["state"] == "ACT"                            # safety first until re-measured
+    assert r["decision"]["actions"][0].startswith("A value is past its safety limit: re-measure")
+    r = q.add_reading("B", r["day"], "spo2", 97.5, "re-measure", "08:05")
+    assert r["decision"]["state"] != "ACT" and r["decision"]["unconfirmed"] == ["spo2"]
+    r2 = q.add("B", q.defaults("B")["values"], {})
+    r2 = q.add_reading("B", r2["day"], "body_temp", 38.6, "evening", "20:30")
+    assert r2["decision"]["state"] == "ACT"                           # an evening value counts too
+
+
+def test_body_self_check():
+    """Creativity/relevance: click a body part, tick what you feel, get guidance at once."""
+    from engine.selfcheck import catalogue, assess, SYSTEM_SYMPTOMS
+    from engine.signals import BODY_SYSTEMS
+    assert set(SYSTEM_SYMPTOMS) == set(BODY_SYSTEMS)                  # every body part is clickable
+    assert all(len(v) >= 3 for v in catalogue().values())
+    r = assess([{"id": "headache", "severity": "mild"}, {"id": "cough"}])
+    assert r["state"] == "WATCH" and len(r["cards"]) == 2
+    assert all(c["do_now"] and c["call_if"] and c["source"].startswith("https://www.nasa.gov/hrp/") for c in r["cards"])
+    assert assess([{"id": "chest pain"}])["state"] == "ACT"
+    assert assess([{"id": "fever", "severity": "strong"}])["state"] == "ACT"
+    ar = assess([{"id": "back pain"}], "ar")
+    assert ar["cards"][0]["name"] == "ألم في الظهر"
+    assert m.selfcheck("A", 125, [{"id": "nausea"}])["state"] == "WATCH"
+    assert "self-check: nausea" in m.earth_message("A", 125)
+
+
+def test_daily_tasks_and_points():
+    """Gamification: today's tasks come from the routine and the guidance; ticks give points."""
+    b = m.task_board("B", 121)
+    ids = [t["id"] for t in b["tasks"]]
+    assert ids[:2] == ["morning", "exercise"] and any(t["kind"] == "guidance" for t in b["tasks"])
+    assert b["points_today"] == 0
+    for t in ids:
+        b = m.tick_task("B", 121, t)
+    assert b["points_today"] == 10 * len(ids) + 20 and b["all_done_streak"] == 1
+    for t in [x["id"] for x in m.task_board("B", 122)["tasks"]]:
+        b = m.tick_task("B", 122, t)
+    assert b["all_done_streak"] == 2 and b["points_total"] > b["points_today"]
+
+
+def test_message_to_the_flight_surgeon():
+    """Impact/influence: a short, prioritised message for the next contact window."""
+    msg = m.earth_message("B", 121)
+    lines = msg.splitlines()
+    assert lines[0].startswith("NABD to flight surgeon | Ben") and lines[0].endswith("ACT")
+    assert lines[1].startswith("Findings: ") and "Request: Please review" in msg
+    assert len(msg) < 900                                              # short enough for a delayed link
+    assert "Data: 12/12 values" in msg
+    ar = m.earth_message("B", 121, "ar")
+    assert ar.startswith("من نبض إلى طبيب الرحلة")
+    c = m.earth_message("C", 110)
+    assert "body_temp 38.4" in c and "confirmed" in c
 
 
 if __name__ == "__main__":

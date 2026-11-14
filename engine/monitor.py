@@ -19,6 +19,10 @@ from . import access
 from .nasa_resources import risks_for
 from . import clinical as clin
 from . import guidance
+from . import readings as extra_readings
+from . import selfcheck as body_check
+from . import earth
+from .tasks import TaskBoard
 from .signals import (SIGNALS, CABIN_SIGNALS, DEVICES, BODY_SYSTEMS, CORE_SIGNALS,
                       CAMERA_SIGNALS, MIN_CAMERA_MINUTES)
 
@@ -28,6 +32,8 @@ LEARN_WINDOW = 30  # ...from the last 30 days that this astronaut was in NORMAL
 MIN_LEARN_DAYS = 7  # fewer usable days than this: keep the previous week's normal
 
 PROFILE_ACTION = "Check that today's measurements were saved in your own profile, then re-enter them if needed."
+REMEASURE_ACTION = ("A value is past its safety limit: re-measure it now after 5 minutes of rest and "
+                    "enter it as a re-measure to confirm.")
 DRIFT_ACTION = ("Flight surgeon: review the slow change in this astronaut's normal since the start "
                 "of the mission (it is too gradual to show on any single day).")
 
@@ -65,6 +71,8 @@ class HealthMonitor:
             for m in self.crew
         }
         self._ai_cache = {}
+        self.tasks = TaskBoard()  # daily health tasks with points
+        self.selfchecks = {}      # (aid, day) -> body self-check results
         self._learned = {}      # update day -> per-astronaut baseline and AI model
         self._rule_states = {}  # (aid, day) -> rule-based state, used to pick learning days
         self._profile = {}      # (aid, day) -> profile mix-up check result
@@ -89,6 +97,40 @@ class HealthMonitor:
                 for key in issues:
                     self.raw_values[(aid, day, key)] = days[day].get(key)
                     days[day][key] = None
+
+    def add_reading(self, aid, day, key, value, kind="evening", when=None):
+        """Add one more reading to a day that already exists (evening, unwell or re-measure)."""
+        if kind not in extra_readings.KINDS:
+            raise ValueError(f"kind must be one of {extra_readings.KINDS}")
+        if key not in SIGNALS:
+            raise ValueError(f"Unknown signal: {key}")
+        self.data["crew"][aid][day].setdefault("extra", []).append(
+            {"signal": key, "value": float(value), "kind": kind, "when": when})
+        for cache in (self._ai_cache, self._rule_states):
+            cache.pop((aid, day), None)
+
+    # ---------- astronaut actions: self-check, tasks, message to Earth ----------
+    def selfcheck(self, aid, day, symptoms, lang="en"):
+        """Body self-check (click where it hurts). Logged so the flight surgeon sees it."""
+        self.member(aid)
+        res = body_check.assess(symptoms, lang)
+        self.selfchecks.setdefault((aid, day), []).append(body_check.assess(symptoms, "en"))
+        return res
+
+    def task_board(self, aid, day):
+        past_days = sorted({d for (a, d) in self.tasks.done if a == aid and d < day})
+        past = {d: self.assess(aid, d) for d in past_days}
+        return self.tasks.board(aid, day, self.assess(aid, day), past)
+
+    def tick_task(self, aid, day, task_id):
+        self.tasks.tick(aid, day, task_id, self.assess(aid, day))
+        return self.task_board(aid, day)
+
+    def earth_message(self, aid, day, lang="en"):
+        d = self.assess(aid, day)
+        board = self.tasks.board(aid, day, d)
+        done = [t["text"] for t in board["tasks"] if t["done"]]
+        return earth.message(self.member(aid), day, d, done, self.selfchecks.get((aid, day)), lang)
 
     def share_learning(self, other):
         """Reuse another monitor's learned weeks (same data up to its last day), so a
@@ -175,7 +217,7 @@ class HealthMonitor:
                 entry.update(untrusted=False, camera_minutes=minutes)
                 out.append(entry)
             else:
-                out.append(analyse_signal(k, day, days, base))
+                out.append(extra_readings.apply(analyse_signal(k, day, days, base), k, day, days))
         return out
 
     @staticmethod
@@ -228,6 +270,10 @@ class HealthMonitor:
             decision["actions"] = [clin.SYMPTOM_ACTION] + [a for a in decision["actions"]
                                                           if a != "No action needed. Keep the normal schedule."]
         decision["reported_symptoms"] = sym
+        if any(s.get("remeasure_needed") for s in signals):
+            decision["actions"] = [REMEASURE_ACTION] + [a for a in decision["actions"]
+                                                        if a != "No action needed. Keep the normal schedule."]
+        decision["unconfirmed"] = [s["signal"] for s in signals if s.get("unconfirmed")]
         # Not enough data is said plainly: it never reads as a confident NORMAL.
         decision["insufficient_data"] = decision["coverage"]["confidence"] == "low"
         decision["dosimetry"] = clin.dosimetry(self.data["crew"][aid], day, aid=aid,
@@ -267,12 +313,16 @@ class HealthMonitor:
         for s in decision["signals"]:
             if s.get("level") == "critical" and not s.get("untrusted") and not s.get("missing"):
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
-                               "trigger": s["signal"], "value": s.get("value"), "unit": s.get("unit"),
+                               "trigger": s["signal"], "value": s.get("alert_value", s.get("value")),
+                               "unit": s.get("unit"),
                                "limit_rule": "absolute safety limit (engine/signals.py, docs/THRESHOLDS.md)",
                                "source": DEVICES[SIGNALS[s["signal"]]["device"]]["name"],
                                "data_status": self.status_of(day),
-                               "why_trusted": "value passed the entry check (own profile, physically "
-                                              "possible, not copied, not missing)"})
+                               "confirmed": bool(s.get("confirmed")),
+                               "why_trusted": ("value passed the entry check (own profile, physically "
+                                               "possible, not copied, not missing)"
+                                               + ("; confirmed on re-measure" if s.get("confirmed")
+                                                  else "; not yet re-measured: re-measure now"))})
         for c in decision["cabin"]:
             if c.get("level") == "act":
                 alerts.append({"path": "immediate_safety", "mission_day": day, "astronaut_id": aid,
